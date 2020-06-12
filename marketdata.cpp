@@ -184,7 +184,7 @@ int MultiThreadRetrieve(vector<string>::iterator st,vector<string>::iterator ed,
     string stock_url_common = "https://eodhistoricaldata.com/api/eod/";
     string stock_start_date = "2010-01-02";
     string stock_end_date = "2019-12-31";
-    string api_token = "5ba84ea974ab42.45160048";
+    string api_token = "";
     for(auto itr=st;itr!=ed;itr++)
     {
         string stockDB_symbol=*itr;
