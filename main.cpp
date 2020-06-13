@@ -37,7 +37,8 @@ int main() {
                 if (CreateTable(sp500_create_table.c_str(), stockDB) == -1)
                     return -1;
 
-                string sp500_data_request = "https://pkgstore.datahub.io/core/s-and-p-500-companies/constituents_json/data/64dd3e9582b936b0352fdd826ecd3c95/constituents_json.json";
+                //string sp500_data_request = "https://pkgstore.datahub.io/core/s-and-p-500-companies/constituents_json/data/64dd3e9582b936b0352fdd826ecd3c95/constituents_json.json";
+                string sp500_data_request="https://pkgstore.datahub.io/core/s-and-p-500-companies/constituents_json/data/8dcccae2a6de88b891fec045e4d6e2c8/constituents_json.json";
                 Json::Value sp500_root;   // will contains the root value after parsing.
                 if (RetrieveMarketData(sp500_data_request, sp500_root) == -1)
                     return -1;
