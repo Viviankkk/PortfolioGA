@@ -4,7 +4,9 @@
 #include <iomanip>
 #include "database.h"
 #include "marketdata.h"
+#include "Stock.h"
 #include "time.h"
+#include "FundamentalData.h"
 #define NUM_THREAD 8
 #define NUM_OF_STOCKS 505
 using namespace std;
@@ -19,8 +21,10 @@ int main() {
 
     while (!END){
         cout<<"Menu:"<<endl;
-        cout<<"A. Retrieve S&P500 constituents."<<endl;
-        cout<<"B. Retrieve market data for S&P500 stocks."<<endl;
+        cout<<"A. Retrieve and populate S&P500 constituents."<<endl;
+        cout<<"B. Retrieve and populate market data for S&P500 stocks."<<endl;
+        cout<<"C. Retrieve and populate fundamental data for S&P500 stocks."<<endl;
+        cout<<"D. test"<<endl;
         cout<<"X. Exit."<<endl;
         cout<<endl<<endl;
         cin>>selection;
@@ -120,6 +124,66 @@ int main() {
                 cout<<endl<<endl;
             }
             break;
+            case 'c':
+            case 'C':
+            {
+                //Get consituents from database
+                vector<string> stocklist;
+                if(GetSymbols(stockDB,stocklist)==-1) return -1;
+                //Create Table Market Data
+                std::string stockDB_drop_table = "DROP TABLE IF EXISTS FundamentalData;";
+                if (DropTable(stockDB_drop_table.c_str(), stockDB) == -1)
+                    return -1;
+
+                string stockDB_create_table = "CREATE TABLE FundamentalData"\
+                                              "(symbol CHAR(20) NOT NULL,"\
+                                              "PERatio REAL NOT NULL,"\
+                                              "DividendYield REAL NOT NULL,"\
+                                              "Beta REAL NOT NULL,"\
+                                              "High52Weeks REAL NOT NULL,"\
+                                              "Low52Weeks REAL NOT NULL,"\
+                                              "MA50Days REAL NOT NULL,"\
+                                              "MA200Days REAL NOT NULL,"\
+                                              "PRIMARY KEY(symbol)"\
+                                              //"FOREIGN KEY(symbol) references SP500(symbol)"
+                                              //"ON DELETE CASCADE ON UPDATE CASCADE"
+                                              ");";
+
+                if (CreateTable(stockDB_create_table.c_str(), stockDB) == -1)
+                    return -1;
+
+                clock_t t0 = clock();
+                if(FundamentalRetrieve(stocklist,stockDB)==-1) return -1;
+                cout << "Time elapsed for inserting data to database: " << setprecision(4) <<
+                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+
+                //Displaying
+                string stockDB_select_table = "SELECT * FROM FundamentalData;";
+                        if (DisplayTable(stockDB_select_table.c_str(), stockDB) == -1)
+                            return -1;
+                cout<<endl<<endl;
+            }
+            break;
+            case 'd':
+            case 'D':
+            {
+                //Get consituents from database
+                vector<string> stocklist;
+                vector<Stock> stocks;
+                if(GetSymbols(stockDB,stocklist)==-1) return -1;
+                //Get ret
+                for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
+                    Stock mystock(*itr);
+                    if(GetReturn(mystock,stockDB)==-1) return -1;
+                    stocks.push_back(mystock);
+                }
+                //Display
+                for(auto itr=stocks.begin();itr!=stocks.end();itr++){
+                    cout<<*itr<<endl;
+                }
+
+            }
+            break;
             case 'x':
             case 'X':
             {
@@ -137,5 +201,6 @@ int main() {
         }
     }
     CloseDatabase(stockDB);
+    cout << "Closed Stock database" << endl << endl;
     return 0;
 }

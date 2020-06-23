@@ -10,4 +10,4 @@ add_executable(PortfolioGA
         json/json-forwards.h
         json/json.h
         jsoncpp.cpp
-        main.cpp database.cpp database.h marketdata.cpp marketdata.h)
+        main.cpp database.cpp database.h marketdata.cpp marketdata.h Stock.h FundamentalData.cpp FundamentalData.h)

@@ -3,6 +3,7 @@
 //
 #include <string>
 #include <vector>
+#include <map>
 #include <iostream>
 #include <fstream>
 #include "marketdata.h"
@@ -10,6 +11,7 @@
 #include "curl/curl.h"
 #include <sqlite3.h>
 #include "database.h"
+#include "Stock.h"
 #include <mutex>
 using namespace std;
 
@@ -121,7 +123,6 @@ int PopulateStockTable(const Json::Value& root, string symbol, vector<Stock>& St
     mylock.unlock();
     return 0;
 }
-
 int PopulateSP500Table(const Json::Value& root, sqlite3* db)
 {
     int count = 0;
@@ -178,13 +179,39 @@ int GetSymbols(sqlite3* db,vector<string>& Symbolist){
     return 0;
 }
 
+static int GetRetCallBack(void *list, int count, char** data, char **columns){
+    vector<double>* ptr= static_cast<vector<double>*>(list);
+    ptr->push_back(strtod(data[0],NULL));
+    return 0;
+}
+
+int GetReturn(Stock& S,sqlite3* db){
+    int rc = 0;
+    char* error = NULL;
+    vector<double> ret;
+    vector<double>* ptrret=&ret;
+    string sqlselect="select (b.adjusted_close/a.adjusted_close)-1 as result"\
+                              " from (select *,row_number()over(order by date) as id,* from MarketData where symbol=\'"+S.GetSymbol()+"\') as a"\
+                              " inner join (select *,row_number()over(order by date) as id,* from MarketData where symbol=\'"+S.GetSymbol()+"\') as b"\
+                              " on a.id=b.id-1"\
+                              " where a.symbol=\'"+S.GetSymbol()+"\';";
+    rc=sqlite3_exec(db,sqlselect.c_str(),GetRetCallBack,ptrret,&error);
+    if (rc){
+        cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
+        sqlite3_free(error);
+        return -1;
+    }
+    S.addRet(ret);
+    return 0;
+}
+
 int MultiThreadRetrieve(vector<string>::iterator st,vector<string>::iterator ed,vector<Stock>& StockArray,sqlite3* stockDB){
     //global initiliation of curl before calling a function
     curl_global_init(CURL_GLOBAL_ALL);
     string stock_url_common = "https://eodhistoricaldata.com/api/eod/";
     string stock_start_date = "2010-01-02";
     string stock_end_date = "2019-12-31";
-    string api_token = "";
+    string api_token = "5ba84ea974ab42.45160048";
     for(auto itr=st;itr!=ed;itr++)
     {
         string stockDB_symbol=*itr;
