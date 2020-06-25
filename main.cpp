@@ -22,9 +22,9 @@ int main() {
     while (!END){
         cout<<"Menu:"<<endl;
         cout<<"A. Retrieve and populate S&P500 constituents."<<endl;
-        cout<<"B. Retrieve and populate market data for S&P500 stocks."<<endl;
+        cout<<"B. Retrieve and populate market data for S&P500 stocks and calculate return."<<endl;
         cout<<"C. Retrieve and populate fundamental data for S&P500 stocks."<<endl;
-        cout<<"D. test"<<endl;
+        cout<<"D. Retrieve data from database."<<endl;
         cout<<"X. Exit."<<endl;
         cout<<endl<<endl;
         cin>>selection;
@@ -61,48 +61,27 @@ int main() {
                 vector<string> stocklist;
                 if(GetSymbols(stockDB,stocklist)==-1) return -1;
                 //Create Table Market Data
-                std::string stockDB_drop_table = "DROP TABLE IF EXISTS MarketData;";
-                if (DropTable(stockDB_drop_table.c_str(), stockDB) == -1)
-                    return -1;
-
-                string stockDB_create_table = "CREATE TABLE MarketData"\
-                                              "(symbol CHAR(20) NOT NULL,"\
-                                              "date CHAR(20) NOT NULL,"\
-                                              "open REAL NOT NULL,"\
-                                              "high REAL NOT NULL,"\
-                                              "low REAL NOT NULL,"\
-                                              "close REAL NOT NULL,"\
-                                              "adjusted_close REAL NOT NULL,"\
-                                              "volume UNSIGNED BIG INT NOT NULL,"\
-                                              "PRIMARY KEY(symbol,date)"
-                                              "FOREIGN KEY(symbol) references SP500(symbol)"
-                                              "ON DELETE CASCADE ON UPDATE CASCADE);";
-
-                if (CreateTable(stockDB_create_table.c_str(), stockDB) == -1)
-                    return -1;
-
-
-
-
+                if(CreateMarketTable("MarketData",stockDB)==-1) return -1;
+                //Retrieving Data for S&P500 stocks
+                cout<<"Retrieving Market Data..."<<endl;
                 clock_t t0 = clock();
-
                 //MultiThreading for Retrieving Data
                 thread Retrieve[NUM_THREAD];
-                vector<Stock> StockArray;
+                vector<Market> StockArray;
                 int size=int(NUM_OF_STOCKS/NUM_THREAD);
                 vector<string>::iterator st=stocklist.begin();
                 vector<string>::iterator ed=stocklist.begin();
                 for(int i=0;i<NUM_THREAD;i++){
                     if(i==NUM_THREAD-1) ed=stocklist.end();
                     else advance(ed,size);
-                    Retrieve[i]=thread(MultiThreadRetrieve,st,ed,ref(StockArray),stockDB);
+                    Retrieve[i]=thread(MultiThreadMarketRetrieve,st,ed,ref(StockArray),stockDB);
                     st=ed;
                 }
                 for(int i=0;i<NUM_THREAD;i++) Retrieve[i].join();
                 cout << "Time elapsed for retrieving data: " << setprecision(4) <<
                      (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
-
                 //Inserting data to database
+                cout<<"Inserting data to database..."<<endl;
                 t0=clock();
                 sqlite3_exec(stockDB,"begin;",0,0,0);
                 sqlite3_exec(stockDB,"PRAGMA synchronous = OFF; ",0,0,0);
@@ -110,18 +89,46 @@ int main() {
                     vector<Trade> trades=itr->GetTrades();
                     for (auto ptr = trades.begin(); ptr != trades.end(); ptr++) {
                         //cout<<*ptr;
-                        if(ptr->InsertATrade(itr->GetSymbol(),stockDB)==-1) return -1;
+                        if(ptr->InsertATrade(itr->GetSymbol(),"MarketData",stockDB)==-1) return -1;
                     }
                 }
                 sqlite3_exec(stockDB,"commit;",0,0,0);
                 cout << "Time elapsed for inserting data to database: " << setprecision(4) <<
                      (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
-
-                //Displaying
-                /*string stockDB_select_table = "SELECT * FROM MarketData;";
-                        if (DisplayTable(stockDB_select_table.c_str(), stockDB) == -1)
-                            return -1;*/
                 cout<<endl<<endl;
+                //Updating Daily Return
+                cout<<"Upadting Daily Return to MarketData..."<<endl;
+                t0=clock();
+                if(AddColumn("DailyReturn","MarketData","REAL",stockDB)==-1) return -1;
+                for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
+                    if(UpdateDailyRet(*itr,"MarketData",stockDB)==-1) return -1;
+                }
+                cout << "Time elapsed for updating: " << setprecision(4) <<
+                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+
+                //Deal with Index
+                cout<<"Retrieving Reference Data..."<<endl;
+                vector<string> Name{"TNX","SPY"};
+                vector<string> Reflist{"^TNX","SPY"};
+                for(int i=0;i<2;i++){
+                    if(CreateMarketTable(Name[i],stockDB)==-1) return -1;
+                    Market Mdata(Reflist[i]);
+                    if(RetrieveDataFromYahoo(Mdata)== 1) return -1;
+                    //clock_t t0=clock();
+                    sqlite3_exec(stockDB,"begin;",0,0,0);
+                    sqlite3_exec(stockDB,"PRAGMA synchronous = OFF; ",0,0,0);
+                    vector<Trade> trades=Mdata.GetTrades();
+                    for (auto ptr = trades.begin(); ptr != trades.end(); ptr++) {
+                        cout<<*ptr;
+                        if(ptr->InsertATrade(Mdata.GetSymbol(),Name[i],stockDB)==-1)
+                            return -1;
+                    }
+                    sqlite3_exec(stockDB,"commit;",0,0,0);
+                    if(AddColumn("DailyReturn",Name[i],"REAL",stockDB)==-1) return -1;
+                    if(UpdateDailyRet(Reflist[i],Name[i],stockDB)==-1) return -1;
+                    //cout << "Time elapsed for inserting data to database: " << setprecision(4) <<
+                    //     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+                }
             }
             break;
             case 'c':
@@ -145,23 +152,46 @@ int main() {
                                               "MA50Days REAL NOT NULL,"\
                                               "MA200Days REAL NOT NULL,"\
                                               "PRIMARY KEY(symbol)"\
-                                              //"FOREIGN KEY(symbol) references SP500(symbol)"
-                                              //"ON DELETE CASCADE ON UPDATE CASCADE"
+                                              "FOREIGN KEY(symbol) references SP500(symbol)"\
+                                              "ON DELETE CASCADE ON UPDATE CASCADE"\
                                               ");";
 
                 if (CreateTable(stockDB_create_table.c_str(), stockDB) == -1)
                     return -1;
-
                 clock_t t0 = clock();
-                if(FundamentalRetrieve(stocklist,stockDB)==-1) return -1;
-                cout << "Time elapsed for inserting data to database: " << setprecision(4) <<
+                //MultiThreading for Retrieving Data
+                thread Retrieve[NUM_THREAD];
+                vector<Fundamental> FArray;
+                int size=int(NUM_OF_STOCKS/NUM_THREAD);
+                vector<string>::iterator st=stocklist.begin();
+                vector<string>::iterator ed=stocklist.begin();
+                for(int i=0;i<NUM_THREAD;i++){
+                    if(i==NUM_THREAD-1) ed=stocklist.end();
+                    else advance(ed,size);
+                    Retrieve[i]=thread(MultiThreadFundamentalRetrieve,st,ed,ref(FArray));
+                    st=ed;
+                }
+                for(int i=0;i<NUM_THREAD;i++) Retrieve[i].join();
+                //MultiThreadFundamentalRetrieve(st,stocklist.end(),FArray);
+                cout << "Time elapsed for retrieving data: " << setprecision(4) <<
                      (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
 
-                //Displaying
+
+                t0 = clock();
+
+                sqlite3_exec(stockDB,"begin;",0,0,0);
+                sqlite3_exec(stockDB,"PRAGMA synchronous = OFF; ",0,0,0);
+                for(auto itr=FArray.begin();itr!=FArray.end();itr++) {
+                    if(itr->InsertFundamental(stockDB)==-1) return -1;
+                }
+                sqlite3_exec(stockDB,"commit;",0,0,0);
+
+                cout << "Time elapsed for inserting into database : " << setprecision(4) <<(clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+
+                /*//Displaying
                 string stockDB_select_table = "SELECT * FROM FundamentalData;";
-                        if (DisplayTable(stockDB_select_table.c_str(), stockDB) == -1)
-                            return -1;
-                cout<<endl<<endl;
+                if (DisplayTable(stockDB_select_table.c_str(), stockDB) == -1) return -1;
+                cout<<endl<<endl;*/
             }
             break;
             case 'd':
@@ -171,17 +201,14 @@ int main() {
                 vector<string> stocklist;
                 vector<Stock> stocks;
                 if(GetSymbols(stockDB,stocklist)==-1) return -1;
-                //Get ret
+
                 for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
                     Stock mystock(*itr);
-                    if(GetReturn(mystock,stockDB)==-1) return -1;
+                    if(RetrieveMarketDataFromDB(mystock,"MarketData",stockDB)==-1) return -1;
+                    if(RetrieveFundamentalDataFromDB(mystock,stockDB)==-1) return -1;
                     stocks.push_back(mystock);
                 }
-                //Display
-                for(auto itr=stocks.begin();itr!=stocks.end();itr++){
-                    cout<<*itr<<endl;
-                }
-
+                // Do something after Retrieving
             }
             break;
             case 'x':

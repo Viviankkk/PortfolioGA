@@ -8,6 +8,7 @@
 #include "json/json.h"
 #include <sqlite3.h>
 using namespace std;
-int PopulateFundamentalTable(const Json::Value& root, string symbol, sqlite3* db);
-int FundamentalRetrieve(vector<string>& stocklist,sqlite3* stockDB);
+int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Fundamental>& FundamentalArray);
+int MultiThreadFundamentalRetrieve(vector<string>::iterator st,vector<string>::iterator ed,vector<Fundamental>& F);
+int RetrieveFundamentalDataFromDB(Stock& S, sqlite3* db);
 #endif //PORTFOLIOGA_FUNDAMENTALDATA_H

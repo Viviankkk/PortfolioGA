@@ -73,12 +73,12 @@ int RetrieveMarketData(string url_request, Json::Value& root)
     return 0;
 }
 
-int PopulateStockTable(const Json::Value& root, string symbol, vector<Stock>& StockArray, sqlite3* db)
+int PopulateStockTable(const Json::Value& root, string symbol, vector<Market>& StockArray, sqlite3* db)
 {
     string date;
     float open, high, low, close, adjusted_close;
     int volume;
-    Stock myStock(symbol);
+    Market myStock(symbol);
     int count = 0;
     for (Json::Value::const_iterator itr = root.begin(); itr != root.end(); itr++)
     {
@@ -123,6 +123,28 @@ int PopulateStockTable(const Json::Value& root, string symbol, vector<Stock>& St
     mylock.unlock();
     return 0;
 }
+
+int CreateMarketTable(string name,sqlite3* db){
+    std::string stockDB_drop_table = "DROP TABLE IF EXISTS "+name+";";
+    if (DropTable(stockDB_drop_table.c_str(), db) == -1)
+        return -1;
+    string stockDB_create_table = "CREATE TABLE " + name
+            + "(symbol CHAR(20) NOT NULL,"\
+            "date CHAR(20) NOT NULL,"\
+            "open REAL NOT NULL,"\
+            "high REAL NOT NULL,"\
+            "low REAL NOT NULL,"\
+            "close REAL NOT NULL,"\
+            "adjusted_close REAL NOT NULL,"\
+            "volume UNSIGNED BIG INT NOT NULL,"\
+            "PRIMARY KEY(symbol,date)"\
+            "FOREIGN KEY(symbol) references SP500(symbol)"\
+            "ON DELETE CASCADE ON UPDATE CASCADE);";
+    if (CreateTable(stockDB_create_table.c_str(), db) == -1)
+        return -1;
+    return 0;
+}
+
 int PopulateSP500Table(const Json::Value& root, sqlite3* db)
 {
     int count = 0;
@@ -179,22 +201,79 @@ int GetSymbols(sqlite3* db,vector<string>& Symbolist){
     return 0;
 }
 
-static int GetRetCallBack(void *list, int count, char** data, char **columns){
-    vector<double>* ptr= static_cast<vector<double>*>(list);
-    ptr->push_back(strtod(data[0],NULL));
+static int GetRetCallBack(void *list, int count, char** results, char **columns){
+    Stock* ptr= static_cast<Stock*>(list);
+    Trade aTrade(results[1],strtod(results[2],NULL),strtod(results[3],NULL),strtod(results[4],NULL),strtod(results[5],NULL),strtod(results[6],NULL),strtod(results[7],NULL));
+    ptr->addTrade(aTrade);
+    //ptr->addRet(strtod(results[8],NULL));
     return 0;
 }
 
-int GetReturn(Stock& S,sqlite3* db){
+int RetrieveMarketDataFromDB(Stock& S, string tablename,sqlite3* db){
+    int rc = 0;
+    char* error = NULL;
+    //vector<double> ret;
+    //vector<double>* ptrret=&ret;
+    Stock* ptr=&S;
+    string sqlselect="select * from " +tablename+" where symbol=\'"+S.GetSymbol()+"\';";
+    rc=sqlite3_exec(db,sqlselect.c_str(),GetRetCallBack,ptr,&error);
+    if (rc){
+        cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
+        sqlite3_free(error);
+        return -1;
+    }
+    return 0;
+}
+/*int RetrieveMarketDataFromDB(Stock& S, string tablename,sqlite3* db)
+{
+    int rc = 0;
+    char* error = NULL;
+    string sql_select="SELECT * FROM "+tablename+" where symbol=\'"+S.GetSymbol()+"\';";
+    char** results = NULL;
+    int rows, columns;
+    // A result table is memory data structure created by the sqlite3_get_table() interface.
+    // A result table records the complete query results from one or more queries.
+    sqlite3_get_table(db, sql_select.c_str(), &results, &rows, &columns, &error);
+    if (rc)
+    {
+        cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
+        sqlite3_free(error);
+        return -1;
+    }
+    //symbol date open high low close adjusted_close volume DailyReturn
+    //vector<Trade> trades;
+    vector<double> dailyret;
+
+    for (int rowCtr = 1; rowCtr <= rows; ++rowCtr)
+    {
+        //int colst=(rowCtr * columns);
+        vector<string> temp(7);
+        for (int colCtr = 1; colCtr < columns; ++colCtr)
+        {
+            // Determine Cell Position
+            int cellPosition = (rowCtr * columns) + colCtr;
+
+            // Display Cell Value
+
+            temp[colCtr-1]=results[cellPosition];
+        }
+        //string temp=results[colst+8];
+        //Trade ATrade(results[colst+1],strtod(results[colst+2],NULL),strtod(results[colst+3],NULL),strtod(results[colst+4],NULL),strtod(results[colst+5],NULL),strtod(results[colst+6],NULL),strtod(results[colst+7],NULL));
+
+        //S.addTrade(ATrade);
+        //dailyret.push_back(temp);
+    }
+    // This function properly releases the value array returned by sqlite3_get_table()
+    sqlite3_free_table(results);
+    S.addRet(dailyret);
+    return 0;
+}*/
+/*int GetReturn(Stock& S,sqlite3* db){
     int rc = 0;
     char* error = NULL;
     vector<double> ret;
     vector<double>* ptrret=&ret;
-    string sqlselect="select (b.adjusted_close/a.adjusted_close)-1 as result"\
-                              " from (select *,row_number()over(order by date) as id,* from MarketData where symbol=\'"+S.GetSymbol()+"\') as a"\
-                              " inner join (select *,row_number()over(order by date) as id,* from MarketData where symbol=\'"+S.GetSymbol()+"\') as b"\
-                              " on a.id=b.id-1"\
-                              " where a.symbol=\'"+S.GetSymbol()+"\';";
+    string sqlselect="select * from MarketData where symbol=\'"+S.GetSymbol()+"\';";
     rc=sqlite3_exec(db,sqlselect.c_str(),GetRetCallBack,ptrret,&error);
     if (rc){
         cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
@@ -203,14 +282,14 @@ int GetReturn(Stock& S,sqlite3* db){
     }
     S.addRet(ret);
     return 0;
-}
+}*/
 
-int MultiThreadRetrieve(vector<string>::iterator st,vector<string>::iterator ed,vector<Stock>& StockArray,sqlite3* stockDB){
+int MultiThreadMarketRetrieve(vector<string>::iterator st,vector<string>::iterator ed,vector<Market>& StockArray,sqlite3* stockDB){
     //global initiliation of curl before calling a function
     curl_global_init(CURL_GLOBAL_ALL);
     string stock_url_common = "https://eodhistoricaldata.com/api/eod/";
     string stock_start_date = "2010-01-02";
-    string stock_end_date = "2019-12-31";
+    string stock_end_date = "2020-06-20";
     string api_token = "5ba84ea974ab42.45160048";
     for(auto itr=st;itr!=ed;itr++)
     {
@@ -232,5 +311,251 @@ int MultiThreadRetrieve(vector<string>::iterator st,vector<string>::iterator ed,
         if (PopulateStockTable(stockDB_root, *itr,StockArray, stockDB) == -1)
             return -1;
     }
+    return 0;
+}
+
+int write_data(void *ptr, int size, int nmemb, FILE *stream)
+{
+    size_t written;
+    written = fwrite(ptr, size, nmemb, stream);
+    return written;
+}
+
+struct MemoryStruct {
+    char *memory;
+    size_t size;
+};
+
+void *myrealloc(void *ptr, size_t size)
+{	if (ptr)
+        return realloc(ptr, size);
+    else
+        return malloc(size);
+}
+
+int write_data2(void *ptr, size_t size, size_t nmemb, void *data)
+{	size_t realsize = size * nmemb;
+    struct MemoryStruct *mem = (struct MemoryStruct *)data;
+    mem->memory = (char *)myrealloc(mem->memory, mem->size + realsize + 1);
+    if (mem->memory) {
+        memcpy(&(mem->memory[mem->size]), ptr, realsize);
+        mem->size += realsize;
+        mem->memory[mem->size] = 0;
+    }
+    return realsize;
+}
+
+string getTimeinSeconds(string Time)
+{
+    std::tm t = {0};
+    std::istringstream ssTime(Time);
+    char time[100];
+    memset(time, 0, 100);
+    if (ssTime >> std::get_time(&t, "%Y-%m-%dT%H:%M:%S"))
+    {
+        cout << std::put_time(&t, "%c %Z") << "\n"
+             << std::mktime(&t) << "\n";
+        sprintf (time, "%lld", mktime(&t));
+        return string(time);
+    }
+    else
+    {
+        cout << "Parse failed\n";
+        return "";
+    }
+}
+
+int RetrieveDataFromYahoo(Market& S)
+{
+    string symbol=S.GetSymbol();
+    string startTime = getTimeinSeconds("2010-01-01T16:00:00");
+    string endTime = getTimeinSeconds("2020-06-20T16:00:00");
+
+    struct MemoryStruct data;
+    data.memory = NULL;
+    data.size = 0;
+
+    // file pointer to create file that store the data
+    FILE *fp;
+
+    // name of files
+    const char outfilename[FILENAME_MAX] = "Output.txt";
+    const char resultfilename[FILENAME_MAX] = "Results.txt";
+
+    // declaration of an object CURL
+    CURL *handle;
+
+    CURLcode result;
+
+    // set up the program environment that libcurl needs
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    // curl_easy_init() returns a CURL easy handle
+    handle = curl_easy_init();
+
+    // if everything's all right with the easy handle...
+    if (handle)
+    {
+
+            string sCookies, sCrumb;
+            if (sCookies.length() == 0 || sCrumb.length() == 0)
+            {
+                fp = fopen(outfilename, "w");
+                //curl_easy_setopt(handle, CURLOPT_URL, "https://finance.yahoo.com/quote/AMZN/history?p=AMZN");
+                curl_easy_setopt(handle, CURLOPT_URL, "https://finance.yahoo.com/quote/AMZN/history");
+                curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0);
+                curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0);
+                curl_easy_setopt(handle, CURLOPT_COOKIEJAR, "cookies.txt");
+                curl_easy_setopt(handle, CURLOPT_COOKIEFILE, "cookies.txt");
+
+                curl_easy_setopt(handle, CURLOPT_ENCODING, "");
+                curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_data);
+                curl_easy_setopt(handle, CURLOPT_WRITEDATA, fp);
+                result = curl_easy_perform(handle);
+                fclose(fp);
+
+                if (result != CURLE_OK)
+                {
+                    // if errors have occurred, tell us what is wrong with result
+                    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+                    return 1;
+                }
+
+                curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_data2);
+                curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&data);
+
+                // perform, then store the expected code in result
+                result = curl_easy_perform(handle);
+
+                if (result != CURLE_OK)
+                {
+                    // if errors have occured, tell us what is wrong with result
+                    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+                    return 1;
+                }
+
+                char cKey[] = "CrumbStore\":{\"crumb\":\"";
+                char *ptr1 = strstr(data.memory, cKey);
+                char *ptr2 = ptr1 + strlen(cKey);
+                char *ptr3 = strstr(ptr2, "\"}");
+                if ( ptr3 != NULL )
+                    *ptr3 = NULL;
+
+                sCrumb = ptr2;
+
+                fp = fopen("cookies.txt", "r");
+                char cCookies[100];
+                if (fp) {
+                    while (fscanf(fp, "%s", cCookies) != EOF);
+                    fclose(fp);
+                }
+                else
+                    cerr << "cookies.txt does not exists" << endl;
+
+                sCookies = cCookies;
+                free(data.memory);
+                data.memory = NULL;
+                data.size= 0;
+            }
+
+            //if (itr == symbolList.end())
+            //    break;
+
+            string urlA = "https://query1.finance.yahoo.com/v7/finance/download/";
+            //string symbol = *itr;
+            string urlB = "?period1=";
+            string urlC = "&period2=";
+            string urlD = "&interval=1d&events=history&crumb=";
+            string url = urlA + symbol + urlB + startTime + urlC + endTime + urlD + sCrumb;
+            const char * cURL = url.c_str();
+            const char * cookies = sCookies.c_str();
+            curl_easy_setopt(handle, CURLOPT_COOKIE, cookies);   // Only needed for 1st stock
+            curl_easy_setopt(handle, CURLOPT_URL, cURL);
+            fp = fopen(resultfilename, "ab");
+            curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_data);
+            curl_easy_setopt(handle, CURLOPT_WRITEDATA, fp);
+            result = curl_easy_perform(handle);
+            fclose(fp);
+
+            // Check for errors */
+            if (result != CURLE_OK)
+            {
+                // if errors have occurred, tell us what is wrong with 'result'
+                fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+                return 1;
+            }
+            curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, write_data2);
+            curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&data);
+            result = curl_easy_perform(handle);
+
+            if (result != CURLE_OK)
+            {
+                // if errors have occurred, tell us what is wrong with result
+                fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+                return 1;
+            }
+
+
+            stringstream sData;
+            sData.str(data.memory);
+            string sValue, sDate;
+            vector<double> data(6);
+            string line;
+            getline(sData, line);
+            while ( getline(sData, line) ) {
+                //cout << line << endl;
+                sDate = line.substr(0, line.find_first_of(','));
+                //line.erase(line.find_last_of(','));
+                for(int i=5;i>=0;i--) {
+                    sValue = line.substr(line.find_last_of(',') + 1);
+                    line.erase(line.find_last_of(','));
+                    data[i] = strtod(sValue.c_str(), NULL);
+                }
+                if (data[0]!=0)
+                {
+                    Trade aTrade(sDate,data[0],data[1],data[2],data[3],data[4],data[5]);
+                    S.addTrade(aTrade);
+                }
+            }
+
+    }
+    else
+    {
+        fprintf(stderr, "Curl init failed!\n");
+        return 1;
+    }
+
+    free(data.memory);
+    data.size= 0;
+
+    // cleanup since you've used curl_easy_init
+    curl_easy_cleanup(handle);
+
+    // release resources acquired by curl_global_init()
+    curl_global_cleanup();
+
+    return 0;
+}
+
+int UpdateDailyRet(string symbol,string tablename,sqlite3* db){
+    int rc = 0;
+    char* error = NULL;
+    //cout << "Updating daily return to "+tablename+"..." << endl;
+    string sql_update="UPDATE "+tablename+
+                      " SET DailyReturn=(select c.result from (select"\
+                      " b.date,(b.adjusted_close-a.adjusted_close)/a.adjusted_close as result"\
+                      " from (select *,row_number()over(order by date) as id,* from "+tablename+" where symbol=\'"+symbol+"\') as a"\
+                      " inner join (select *,row_number()over(order by date) as id,* from "+tablename+" where symbol=\'"+symbol+"\') as b"\
+                      " on a.id=b.id-1"\
+                      " where a.symbol=\'"+symbol+"\') as c where "+tablename+".date=c.date)"\
+                      " where symbol=\'"+symbol+"\';";
+    rc = sqlite3_exec(db, sql_update.c_str(), NULL, NULL, &error);
+    if (rc)
+    {
+        cerr << "Error executing SQLite3 statement: " << sqlite3_errmsg(db) << endl << endl;
+        sqlite3_free(error);
+        return -1;
+    }
+    //cout << "Updated." << endl;
     return 0;
 }

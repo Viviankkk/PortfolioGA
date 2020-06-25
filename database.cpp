@@ -131,3 +131,18 @@ int DisplayTable(const char* sql_select, sqlite3* db)
     return 0;
 }
 
+int AddColumn(string colname,string tablename,string type,sqlite3*db){
+    int rc = 0;
+    char* error = NULL;
+    string sql_add_column="ALTER TABLE "+tablename+" ADD COLUMN "+colname+" "+type+" DEFAULT 0;";
+    rc = sqlite3_exec(db, sql_add_column.c_str(), NULL, NULL, &error);
+    if (rc)
+    {
+        cerr << "Error executing SQLite3 statement: " << sqlite3_errmsg(db) << endl << endl;
+        sqlite3_free(error);
+        return -1;
+    }
+    return 0;
+}
+
+
