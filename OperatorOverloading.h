@@ -19,7 +19,11 @@ vector<double> operator- (const vector<double>&  a,const vector<double>&  b);
 //double operator* (const vector<double>&  a, const vector<double>&  b);
 
 vector<double> operator* (const vector<double>&  a, const double& b);
+vector<double> operator/ (const vector<double>&  a, const double& b);
 
+double mean(vector<double>& vec);
+double sum(vector<double>& vec);
 
+vector<vector<double>> covariance_matrix(vector<vector<double>>& matrix);
 
 #endif //PORTFOLIOGA_OPERATOROVERLOADING_H

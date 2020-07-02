@@ -25,6 +25,7 @@ int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Funda
         return -1;
     }*/
     float PERatio=0,DivYield=0,Beta=0,High52Weeks=0,Low52Week=0,MA50Days=0,MA200Days=0;
+    int64_t Cap=0;
     for (Json::Value::const_iterator itr = root.begin(); itr != root.end(); itr++)
     {
         //PERatio=(*itr)["PERatio"].asFloat();
@@ -39,6 +40,9 @@ int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Funda
 
             else if (inner.key().asString() == "DividendYield")
                 DivYield = inner->asFloat();
+
+            else if(inner.key().asString() == "MarketCapitalization")
+                Cap = inner->asInt64();
 
         }
         }
@@ -60,7 +64,7 @@ int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Funda
         //Fundamental F(PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days);
 
     }
-    Fundamental F(symbol,PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days);
+    Fundamental F(symbol,PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days,Cap);
     mylockf.lock();
     FundamentalArray.push_back(F);
     mylockf.unlock();
@@ -172,7 +176,7 @@ int RetrieveFundamentalDataFromDB(Stock& S, sqlite3* db)
     //vector<double> dailyret;
     int row=1;
     int pos=row*columns;
-    S.AddFundamental(strtod(results[pos+1],NULL),strtod(results[pos+2],NULL),strtod(results[pos+3],NULL),strtod(results[pos+4],NULL),strtod(results[pos+5],NULL),strtod(results[pos+6],NULL),strtod(results[pos+7],NULL));
+    S.AddFundamental(strtod(results[pos+1],NULL),strtod(results[pos+2],NULL),strtod(results[pos+3],NULL),strtod(results[pos+4],NULL),strtod(results[pos+5],NULL),strtod(results[pos+6],NULL),strtod(results[pos+7],NULL),strtoll(results[pos+8],NULL,0));
 
 
     // This function properly releases the value array returned by sqlite3_get_table()

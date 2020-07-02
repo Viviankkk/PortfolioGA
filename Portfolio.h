@@ -9,7 +9,7 @@
 #define CROSSOVER_RATE            0.7
 #define MUTATION_RATE             0.03
 #define POP_SIZE                  50           //must be an even number
-#define CHROMO_LENGTH             10
+#define PORTFOLIO_SIZE             10
 //#define GENE_LENGTH               4
 #define MAX_ALLOWABLE_GENERATIONS   100
 
@@ -20,26 +20,44 @@
 
 class Portfolio{//Needs to ensure all constinuents has same length of data
 private:
-    vector<Stock> constinuents;
+    vector<int> id;//id of consitituents
+    vector<string> constituents;//for showing
+    //vector<Stock> constinuents;
     vector<double> weights;
-    vector<double> ret;
-    vector<double> volatiliy;
-    double beta;
-    vector<double> treynor;
-    vector<double> sharpe;
-    vector<double> jensen;
+    double ret;
+    double risk;
+    //vector<double> volatiliy;
+    //double beta;
+    //vector<double> treynor;
+    //vector<double> sharpe;
+    //vector<double> jensen;
     double fitness;
 public:
-    Portfolio(int length,vector<Stock>& stocklist);
-    Portfolio(const Portfolio& P):constinuents(P.constinuents),fitness(P.fitness) {};
-    void Assignfitness(){
-        fitness=0.0;//need to amend
+    Portfolio(){fitness=ret=risk=0;}
+    Portfolio(int length,vector<Stock> &stocks,int period);
+    Portfolio(const Portfolio& P):id(P.id),fitness(P.fitness),ret(P.ret),risk(P.risk),constituents(P.constituents),weights(P.weights) {};
+    void AssignWeight(vector<Stock>& stocks);
+    void Assignfitness(vector<Stock>& stocks,int period){
+        AssignWeight(stocks);
+        calret(stocks,period);
+        risk=calrisk(stocks);
+        fitness=ret/risk;
     }
-    void calvol(int len);
-    void calret();
-    void calbeta();
+    double calrisk(vector<Stock>& stocks);
+    void calret(vector<Stock>& stocks,int period);
+    friend ostream& operator<<(ostream &out,const Portfolio& F){
+        out<<"constituents:"<<endl;
+        for(auto itr=F.constituents.begin();itr!=F.constituents.end();itr++){
+            out<<*itr<<"  ";
+        }
+        out<<endl;
+        //out<<"ret:"<<F.ret<<endl;
+        out<<"fitness:"<<F.fitness<<endl;
+        return out;
+    }
+    //void calbeta();
     void Mutate(vector<Stock>& stocklist);
-    Portfolio Crossover(Portfolio& AnotherParent);
+    //Portfolio Crossover(Portfolio& AnotherParent);
 };
 #define PORTFOLIOGA_PORTFOLIO_H
 

@@ -7,11 +7,14 @@
 #include "Stock.h"
 #include "time.h"
 #include "FundamentalData.h"
+#include "Portfolio.h"
+
 #define NUM_THREAD 8
-#define NUM_OF_STOCKS 505
+#define NUM_OF_STOCKS 497
 using namespace std;
 
 int main() {
+    srand( time( NULL ) );
     const char* stockDB_name = "SP500.db";
     sqlite3* stockDB = NULL;
     if (OpenDatabase(stockDB_name, stockDB) == -1)
@@ -65,19 +68,23 @@ int main() {
                 //Retrieving Data for S&P500 stocks
                 cout<<"Retrieving Market Data..."<<endl;
                 clock_t t0 = clock();
-                //MultiThreading for Retrieving Data
-                thread Retrieve[NUM_THREAD];
                 vector<Market> StockArray;
+                //MultiThreading for Retrieving Data
+                /*thread Retrieve[NUM_THREAD];
+
                 int size=int(NUM_OF_STOCKS/NUM_THREAD);
                 vector<string>::iterator st=stocklist.begin();
                 vector<string>::iterator ed=stocklist.begin();
-                for(int i=0;i<NUM_THREAD;i++){
-                    if(i==NUM_THREAD-1) ed=stocklist.end();
-                    else advance(ed,size);
-                    Retrieve[i]=thread(MultiThreadMarketRetrieve,st,ed,ref(StockArray),stockDB);
-                    st=ed;
+                for(int i=0;i<NUM_THREAD;i++) {
+                    if (i == NUM_THREAD - 1) ed = stocklist.end();
+                    else advance(ed, size);
+                    Retrieve[i] = thread(MultiThreadMarketRetrieve, st, ed, ref(StockArray), stockDB);
+                    st = ed;
                 }
-                for(int i=0;i<NUM_THREAD;i++) Retrieve[i].join();
+                for(int i=0;i<NUM_THREAD;i++) Retrieve[i].join();*/
+                vector<string>::iterator st=stocklist.begin();
+                vector<string>::iterator ed=stocklist.end();
+                MultiThreadMarketRetrieve(st,ed,StockArray,stockDB);
                 cout << "Time elapsed for retrieving data: " << setprecision(4) <<
                      (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
                 //Inserting data to database
@@ -97,14 +104,14 @@ int main() {
                      (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
                 cout<<endl<<endl;
                 //Updating Daily Return
-                cout<<"Upadting Daily Return to MarketData..."<<endl;
+                /*cout<<"Upadting Daily Return to MarketData..."<<endl;
                 t0=clock();
-                if(AddColumn("DailyReturn","MarketData","REAL",stockDB)==-1) return -1;
+                //if(AddColumn("DailyReturn","MarketData","REAL",stockDB)==-1) return -1;
                 for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
                     if(UpdateDailyRet(*itr,"MarketData",stockDB)==-1) return -1;
                 }
                 cout << "Time elapsed for updating: " << setprecision(4) <<
-                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;*/
 
                 //Deal with Index
                 cout<<"Retrieving Reference Data..."<<endl;
@@ -124,8 +131,8 @@ int main() {
                             return -1;
                     }
                     sqlite3_exec(stockDB,"commit;",0,0,0);
-                    if(AddColumn("DailyReturn",Name[i],"REAL",stockDB)==-1) return -1;
-                    if(UpdateDailyRet(Reflist[i],Name[i],stockDB)==-1) return -1;
+                    //if(AddColumn("DailyReturn",Name[i],"REAL",stockDB)==-1) return -1;
+                    //if(UpdateDailyRet(Reflist[i],Name[i],stockDB)==-1) return -1;
                     //cout << "Time elapsed for inserting data to database: " << setprecision(4) <<
                     //     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
                 }
@@ -151,6 +158,7 @@ int main() {
                                               "Low52Weeks REAL NOT NULL,"\
                                               "MA50Days REAL NOT NULL,"\
                                               "MA200Days REAL NOT NULL,"\
+                                              "Capital UNSIGNED BIG INT NOT NULL,"
                                               "PRIMARY KEY(symbol)"\
                                               "FOREIGN KEY(symbol) references SP500(symbol)"\
                                               "ON DELETE CASCADE ON UPDATE CASCADE"\
@@ -197,17 +205,44 @@ int main() {
             case 'd':
             case 'D':
             {
+                //Date For historical data
+                string startdate="2018-01-01";
+                string enddate="2019-12-31";
+                int period=20;
+                //Get SPY and US10Y
+                Stock SPY("SPY");
+                Stock Rf("^TNX");
+                if(RetrieveMarketDataFromDB(SPY,"SPY",startdate,enddate,stockDB)==-1) return -1;
+                if(RetrieveMarketDataFromDB(SPY,"TNX",startdate,enddate,stockDB)==-1) return -1;
+                int length=SPY.GetDates().size();
                 //Get consituents from database
                 vector<string> stocklist;
                 vector<Stock> stocks;
+                vector<string> removelist;
+                //map<string,Stock> stockmap;
                 if(GetSymbols(stockDB,stocklist)==-1) return -1;
 
                 for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
                     Stock mystock(*itr);
-                    if(RetrieveMarketDataFromDB(mystock,"MarketData",stockDB)==-1) return -1;
+                    if(RetrieveMarketDataFromDB(mystock,"MarketData",startdate,enddate,stockDB)==-1) return -1;
                     if(RetrieveFundamentalDataFromDB(mystock,stockDB)==-1) return -1;
+                    if(mystock.GetDates().size()!=length) {removelist.push_back(*itr);continue;}
+                    mystock.CalRet(period);
                     stocks.push_back(mystock);
+                    //stockmap[*itr]=mystock;
                 }
+
+                /*for(auto ptr=removelist.begin();ptr!=removelist.end();ptr++){
+                    auto itr=find(stocks.begin(),stocks.end(),*ptr);
+                    stocks.erase(itr);
+                }*/
+                vector<Portfolio> p;
+                for(int i=0;i<50;i++){
+                Portfolio P1(10,stocks,period);
+                p.push_back(P1);
+                cout<<P1;
+                }
+                int i=0;
                 // Do something after Retrieving
             }
             break;

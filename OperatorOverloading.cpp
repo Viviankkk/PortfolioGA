@@ -95,6 +95,13 @@ vector<double> operator* (const vector<double>&  a, const double& b) {
     }
     return c;
 }
+vector<double> operator/ (const vector<double>&  a, const double& b) {
+    vector<double> c(a.size(),0);
+    for(int i=0;i<a.size();i++){
+        c[i]=a[i]/b;
+    }
+    return c;
+}
 /*template <class T>
 vector<vector<T>> operator* (vector<vector<T>>&  a, vector<vector<T>>&  b) {
     if (a[0].size()!=b.size()) {
@@ -107,3 +114,38 @@ vector<vector<T>> operator* (vector<vector<T>>&  a, vector<vector<T>>&  b) {
     }
     return c;
 }*/
+double sum(vector<double>& vec){
+    double sum=0;
+    for(int i=0;i<vec.size();i++){
+        sum+=vec[i];
+    }
+    return sum;
+}
+double mean(vector<double>& vec){
+    return sum(vec)/vec.size();
+}
+double cov(vector<double>& x,vector<double>& y){
+    double xmean=mean(x);
+    double ymean=mean(y);
+    if(x.size()!=y.size()) return -999;
+    double total = 0;
+    for(int i = 0; i < x.size(); i++)
+    {
+        total += (x[i] - xmean) * (y[i] - ymean);
+    }
+    return total / x.size();
+}
+vector<vector<double>> covariance_matrix(vector<vector<double>>& matrix){
+    vector<vector<double>> covmatrix(matrix.size());
+    for(int i=0;i<matrix.size();i++){
+        covmatrix[i].resize(matrix.size());
+        for(int j=0;j<matrix.size();j++){
+
+            if(j>=i){
+                covmatrix[i][j]=cov(matrix[i],matrix[j]);
+            }
+            else covmatrix[i][j]=covmatrix[j][i];
+        }
+    }
+    return covmatrix;
+}

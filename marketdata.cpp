@@ -77,9 +77,11 @@ int PopulateStockTable(const Json::Value& root, string symbol, vector<Market>& S
 {
     string date;
     float open, high, low, close, adjusted_close;
+    double ret;
     int volume;
     Market myStock(symbol);
-    int count = 0;
+    //int count = 0;
+    float prevclose=0;
     for (Json::Value::const_iterator itr = root.begin(); itr != root.end(); itr++)
     {
         //cout << *itr << endl;
@@ -107,10 +109,13 @@ int PopulateStockTable(const Json::Value& root, string symbol, vector<Market>& S
                 return -1;
             }
         }
-        Trade aTrade(date, open, high, low, close, adjusted_close, volume);
+        if(prevclose==0) ret=0;
+        else ret=close/prevclose-1;
+        Trade aTrade(date, open, high, low, close, adjusted_close, volume,ret);
         //mylock.lock();
         myStock.addTrade(aTrade);
-        count++;
+        prevclose=close;
+        //count++;
         //mylock.unlock();
         // Execute SQL
         /*char stockDB_insert_table[512];
@@ -137,6 +142,7 @@ int CreateMarketTable(string name,sqlite3* db){
             "close REAL NOT NULL,"\
             "adjusted_close REAL NOT NULL,"\
             "volume UNSIGNED BIG INT NOT NULL,"\
+            "return REAL DEFAULT 0,"\
             "PRIMARY KEY(symbol,date)"\
             "FOREIGN KEY(symbol) references SP500(symbol)"\
             "ON DELETE CASCADE ON UPDATE CASCADE);";
@@ -203,19 +209,22 @@ int GetSymbols(sqlite3* db,vector<string>& Symbolist){
 
 static int GetRetCallBack(void *list, int count, char** results, char **columns){
     Stock* ptr= static_cast<Stock*>(list);
-    Trade aTrade(results[1],strtod(results[2],NULL),strtod(results[3],NULL),strtod(results[4],NULL),strtod(results[5],NULL),strtod(results[6],NULL),strtod(results[7],NULL));
-    ptr->addTrade(aTrade);
+    //Trade aTrade(results[1],strtod(results[2],NULL),strtod(results[3],NULL),strtod(results[4],NULL),strtod(results[5],NULL),strtod(results[6],NULL),strtod(results[7],NULL),strtod(results[8],NULL));
+    //ptr->addTrade(aTrade);
+    ptr->adddates(results[0]);
+    ptr->addClose(strtod(results[1],NULL));
     //ptr->addRet(strtod(results[8],NULL));
     return 0;
 }
 
-int RetrieveMarketDataFromDB(Stock& S, string tablename,sqlite3* db){
+int RetrieveMarketDataFromDB(Stock& S, string tablename,string startdate,string enddate,sqlite3* db){
     int rc = 0;
     char* error = NULL;
     //vector<double> ret;
     //vector<double>* ptrret=&ret;
     Stock* ptr=&S;
-    string sqlselect="select * from " +tablename+" where symbol=\'"+S.GetSymbol()+"\';";
+    //string sqlselect="select * from " +tablename+" where symbol=\'"+S.GetSymbol()+"\';";
+    string sqlselect="SELECT date,adjusted_close FROM  "+tablename+" where symbol=\'"+S.GetSymbol()+"\' and date<=\'"+enddate+"\' and date>=\'"+startdate+"\';";
     rc=sqlite3_exec(db,sqlselect.c_str(),GetRetCallBack,ptr,&error);
     if (rc){
         cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
@@ -513,7 +522,7 @@ int RetrieveDataFromYahoo(Market& S)
                 }
                 if (data[0]!=0)
                 {
-                    Trade aTrade(sDate,data[0],data[1],data[2],data[3],data[4],data[5]);
+                    Trade aTrade(sDate,data[0],data[1],data[2],data[3],data[4],data[5],0);
                     S.addTrade(aTrade);
                 }
             }
@@ -542,7 +551,7 @@ int UpdateDailyRet(string symbol,string tablename,sqlite3* db){
     char* error = NULL;
     //cout << "Updating daily return to "+tablename+"..." << endl;
     string sql_update="UPDATE "+tablename+
-                      " SET DailyReturn=(select c.result from (select"\
+                      " SET return=(select c.result from (select"\
                       " b.date,(b.adjusted_close-a.adjusted_close)/a.adjusted_close as result"\
                       " from (select *,row_number()over(order by date) as id,* from "+tablename+" where symbol=\'"+symbol+"\') as a"\
                       " inner join (select *,row_number()over(order by date) as id,* from "+tablename+" where symbol=\'"+symbol+"\') as b"\

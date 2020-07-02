@@ -20,7 +20,7 @@ int RetrieveMarketData(string url_request, Json::Value& root);
 int PopulateStockTable(const Json::Value& root, string symbol, vector<Market>& StockArray, sqlite3* db);
 
 int RetrieveDataFromYahoo(Market& S);
-int RetrieveMarketDataFromDB(Stock& S, string tablename,sqlite3* db);
+int RetrieveMarketDataFromDB(Stock& S, string tablename,string startdate,string enddate,sqlite3* db);
 int GetSymbols(sqlite3* db,vector<string>& Symbolist);
 int MultiThreadMarketRetrieve(vector<string>::iterator st,vector<string>::iterator ed,vector<Market>& StockArray,sqlite3* stockDB);
 //int GetReturn(Stock& S,sqlite3* db);
