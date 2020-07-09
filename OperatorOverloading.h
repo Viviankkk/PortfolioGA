@@ -25,5 +25,6 @@ double mean(vector<double>& vec);
 double sum(vector<double>& vec);
 
 vector<vector<double>> covariance_matrix(vector<vector<double>>& matrix);
+string DateAhead(string date,int n);
 
 #endif //PORTFOLIOGA_OPERATOROVERLOADING_H

@@ -11,7 +11,8 @@
 #include "sqlite3.h"
 #include "database.h"
 #include "marketdata.h"
-#define SP500_NUM   497
+#define SP500_NUM   494
+#define PERIOD 20
 using namespace std;
 class Portfolio;
 class Trade
@@ -35,7 +36,7 @@ public:
     {}
 
     ~Trade() {}
-    string Getdate() const{return date;}
+    //string Getdate() const{return date;}
     //float Getopen() const{return open;}
     //float Gethigh() const{return high;}
     //float Getlow() const{return low;}
@@ -70,6 +71,7 @@ public:
     Reference(){symbol="";}
     Reference(const Reference& S):symbol(S.symbol){}
     ~Reference(){}
+    string GetSymbol()const {return symbol;}
 };
 class Fundamental:public virtual Reference{
 protected:
@@ -123,13 +125,13 @@ public:
             Reference(symbol_),trades(trades_),ret(ret_) {}//
     Market(const Market& M):Reference(M.symbol),trades(M.trades),ret(M.ret),close(M.close),dates(M.dates) {}
     ~Market() {}
-    string GetSymbol()const {return symbol;}
+
     vector<string> GetDates()const {return dates;}
     vector<Trade> GetTrades()const {return trades;}
     //void addRet(vector<double>& Ret){ dailyret=Ret;}
-    void addRet(double R){ret.push_back(R);}
+    //void addRet(double R){ret.push_back(R);}
     void addTrade(Trade aTrade) { trades.push_back(aTrade);}
-    void addRetVec(vector<double>& ret_) {ret=ret_;}
+    //void addRetVec(vector<double>& ret_) {ret=ret_;}
     void addClose(double adjclose){close.push_back(adjclose);}
     void adddates(string date){dates.push_back(date);}
     void CalRet(int period){
@@ -138,6 +140,10 @@ public:
         for(int i=period;i<close.size();i++){
           ret[i-period]=close[i]/close[i-period]-1;
         }
+    }
+    double CalculatePnL(){
+        double temp= close[close.size()-1]/close[0]-1;
+        return temp;
     }
 };
 class Stock:public Market,public Fundamental{
@@ -150,6 +156,7 @@ public:
     Stock(const Stock& S):Reference(S.symbol),
     Market(S.symbol,S.trades,S.ret,S.close,S.dates),Fundamental(S.symbol,S.PERatio,S.DivYield,S.Beta,S.High52Weeks,S.Low52Weeks,S.MA50Days,S.MA200Days,S.Cap){}
     ~Stock(){}
+
     //vector<double> GetRet()const{return dailyret;}
     bool operator==(const Stock& other){
         return (symbol==other.symbol);

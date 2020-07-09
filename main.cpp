@@ -8,9 +8,11 @@
 #include "time.h"
 #include "FundamentalData.h"
 #include "Portfolio.h"
+#include "Population.h"
 
 #define NUM_THREAD 8
-#define NUM_OF_STOCKS 497
+#define NUM_OF_STOCKS 494
+
 using namespace std;
 
 int main() {
@@ -206,44 +208,67 @@ int main() {
             case 'D':
             {
                 //Date For historical data
-                string startdate="2018-01-01";
-                string enddate="2019-12-31";
-                int period=20;
-                //Get SPY and US10Y
-                Stock SPY("SPY");
-                Stock Rf("^TNX");
-                if(RetrieveMarketDataFromDB(SPY,"SPY",startdate,enddate,stockDB)==-1) return -1;
-                if(RetrieveMarketDataFromDB(SPY,"TNX",startdate,enddate,stockDB)==-1) return -1;
-                int length=SPY.GetDates().size();
-                //Get consituents from database
-                vector<string> stocklist;
-                vector<Stock> stocks;
-                vector<string> removelist;
-                //map<string,Stock> stockmap;
-                if(GetSymbols(stockDB,stocklist)==-1) return -1;
+                string startdate="2017-01-01";
+                string enddate="2018-12-31";
+                string backtest_st="2019-01-01";
+                string backtest_ed="2019-12-31";
 
-                for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
-                    Stock mystock(*itr);
-                    if(RetrieveMarketDataFromDB(mystock,"MarketData",startdate,enddate,stockDB)==-1) return -1;
-                    if(RetrieveFundamentalDataFromDB(mystock,stockDB)==-1) return -1;
-                    if(mystock.GetDates().size()!=length) {removelist.push_back(*itr);continue;}
-                    mystock.CalRet(period);
-                    stocks.push_back(mystock);
-                    //stockmap[*itr]=mystock;
+                vector<double> PnLs;
+                double cumulative=1;
+
+                for(int i=0;i<13;i++) {
+                    //Get SPY and US10Y
+                    Stock SPY("SPY");
+                    Stock Rf("^TNX");
+                    if (RetrieveMarketDataFromDB(SPY, "SPY", startdate, enddate, stockDB) == -1) return -1;
+                    if (RetrieveMarketDataFromDB(SPY, "TNX", startdate, enddate, stockDB) == -1) return -1;
+                    int length = SPY.GetDates().size();
+                    //Get consituents from database
+                    vector<string> stocklist;
+                    vector<Stock> stocks;
+                    //vector<string> removelist;
+                    //map<string,Stock> stockmap;
+                    if (GetSymbols(stockDB, stocklist) == -1) return -1;
+
+                    for (auto itr = stocklist.begin(); itr != stocklist.end(); itr++) {
+                        Stock mystock(*itr);
+                        if (RetrieveMarketDataFromDB(mystock, "MarketData", startdate, enddate, stockDB) == -1)
+                            return -1;
+                        if (RetrieveFundamentalDataFromDB(mystock, stockDB) == -1) return -1;
+                        if (mystock.GetDates().size() != length) { continue; }
+                        mystock.CalRet(PERIOD);
+                        stocks.push_back(mystock);
+                        //stockmap[*itr]=mystock;
+                    }
+                    Portfolio Hold = GeneticAlgorithm(stocks);
+                    cout << Hold;
+
+                    double PnL = CalPnL(Hold, backtest_st, DateAhead(backtest_st, PERIOD/5*7-1), stockDB);
+                    PnLs.push_back(PnL);
+                    cumulative*=(1+PnL);
+                    cout <<backtest_st<<" to "<<DateAhead(backtest_st, PERIOD/5*7-1)<<": "<<PnL<<endl;
+
+                    startdate = DateAhead(startdate, PERIOD/5*7 );
+                    enddate = DateAhead(enddate, PERIOD/5*7 );
+                    backtest_st = DateAhead(backtest_st, PERIOD/5*7 );
+
                 }
 
-                /*for(auto ptr=removelist.begin();ptr!=removelist.end();ptr++){
-                    auto itr=find(stocks.begin(),stocks.end(),*ptr);
-                    stocks.erase(itr);
-                }*/
-                vector<Portfolio> p;
-                for(int i=0;i<50;i++){
-                Portfolio P1(10,stocks,period);
-                p.push_back(P1);
-                cout<<P1;
-                }
-                int i=0;
-                // Do something after Retrieving
+                cout<<"Annual Return: "<<(cumulative-1)*100<<"%"<<endl;
+
+
+
+
+
+
+            }
+            break;
+            case 'e':
+            case 'E':
+            {
+                string startdate="2018-12-31";
+                string test=DateAhead(startdate,20);
+                cout<<test;
             }
             break;
             case 'x':

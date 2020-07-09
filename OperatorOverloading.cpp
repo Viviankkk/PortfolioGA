@@ -5,6 +5,9 @@
 #include "OperatorOverloading.h"
 #include <vector>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
+
 using namespace std;
 
 vector<double> operator+ (const vector<double>& a, const vector<double>&  b) {
@@ -148,4 +151,22 @@ vector<vector<double>> covariance_matrix(vector<vector<double>>& matrix){
         }
     }
     return covmatrix;
+}
+
+string DateAhead(string date,int n){
+    tm Anctm = {};
+    stringstream ss(date);
+    ss >> get_time(&Anctm, "%Y-%m-%d");
+
+    time_t t=mktime(&Anctm)+n*24*60*60;
+    tm* af=localtime(&t);
+    //char time[100];
+    //sprintf(time,"%lld",af);
+    string month,day;
+    int m=af->tm_mon+1;
+    if (m<10) month="0"+to_string(m);
+    else month=to_string(m);
+    if (af->tm_mday<10) day="0"+to_string(af->tm_mday);
+    else day=to_string(af->tm_mday);
+    return to_string(af->tm_year+1900)+"-"+month+"-"+day;//asctime(af);
 }

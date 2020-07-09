@@ -8,14 +8,24 @@
 #include <math.h>
 
 using namespace std;
-Portfolio::Portfolio(int length,vector<Stock> &stocks,int period) {
+Portfolio::Portfolio(int length,vector<Stock> &stocks) {
     vector<int> indexlst;
     for (int i = 0; i < length; i++) {
         int index = (int) (RANDOM_NUM * SP500_NUM);
         std::vector<int>::iterator it = find(indexlst.begin(), indexlst.end(), index);
         if (it == indexlst.end()) {id.push_back(index);constituents.push_back(stocks[index].GetSymbol());}
     }
-    Assignfitness(stocks,period);
+    Assignfitness(stocks);
+}
+Portfolio::Portfolio(vector<int> &id_) {
+    id=id_;
+    vector<string>().swap(constituents);
+    fitness=ret=risk=0;
+}
+
+void Portfolio::AssignConstituents(vector<Stock> &stocks) {
+    vector<string>().swap(constituents);
+    for(auto itr=id.begin();itr!=id.end();itr++) constituents.push_back(stocks[*itr].GetSymbol());
 }
 void Portfolio::AssignWeight(vector<Stock> &stocks) {
     vector<double> temp;
@@ -23,10 +33,10 @@ void Portfolio::AssignWeight(vector<Stock> &stocks) {
     weights=temp/sum(temp);
 }
 
-void Portfolio::calret(vector<Stock>& stocks,int period) {
+void Portfolio::calret(vector<Stock>& stocks) {
     ret=0;
     for(int i=0;i<id.size();i++){ ret = ret + mean(stocks[id[i]].ret)*weights[i];}
-    ret=pow(1+ret,252/period)-1;
+    ret=pow(1+ret,252/PERIOD)-1;
 }
 
 double Portfolio::calrisk(vector<Stock>& stocks){
@@ -77,29 +87,31 @@ void Portfolio::calbeta() {
     for(int i=0;i<constinuents.size();i++){
         beta += constinuents[i].Beta*weights[i];
     }
-}
+}*/
 
 
-void Portfolio::Mutate(vector<Stock> &StockArray)
+void Portfolio::Mutate(vector<Stock> &stocks)
 {
-    for (auto itr=constinuents.begin();itr!=constinuents.end();itr++)
+    for (auto itr=id.begin();itr!=id.end();itr++)
     {
         if (RANDOM_NUM < MUTATION_RATE)
         {
-            constinuents.erase(itr);
+            id.erase(itr);
             bool repstock=true;
             while (repstock) {
-                Stock newconstinuent = StockArray[(int) (RANDOM_NUM * SP500_NUM)];
-                std::vector<Stock>::iterator it = find(constinuents.begin(), constinuents.end(), newconstinuent);
-                if(it == constinuents.end()) {
-                    constinuents.insert(itr,newconstinuent);
+                int newid= (RANDOM_NUM * SP500_NUM);
+                std::vector<int>::iterator it = find(id.begin(), id.end(), newid);
+                if(it == id.end()) {
+                    id.insert(itr,newid);
                     repstock=false;
                 }
             }
         }
     }
+    Assignfitness(stocks);
 }
-int Crossover(Portfolio& AnotherParent,Portfolio& Child1,Portfolio& Child2)
+
+void Crossover(Portfolio& Parent,Portfolio& AnotherParent,Portfolio& Child1,Portfolio& Child2)
 {
     //dependent on the crossover rate
     //if (RANDOM_NUM < CROSSOVER_RATE)
@@ -107,9 +119,15 @@ int Crossover(Portfolio& AnotherParent,Portfolio& Child1,Portfolio& Child2)
         //create a random crossover point
         //int crossover = (int)(RANDOM_NUM * CHROMO_LENGTH);}
         int crpoint=RANDOM_NUM*PORTFOLIO_SIZE;
+        vector<int> a=Parent.GetID();
+        vector<int> b=AnotherParent.GetID();
+        vector<int> c1(a.begin(),a.begin()+crpoint);
+        vector<int> c2(b.begin(),b.begin()+crpoint);
+        c1.insert(c1.end(),b.begin()+crpoint,b.end());
+        c2.insert(c2.end(),a.begin()+crpoint,a.end());
+        Child1.AssignID(c1);
+        Child2.AssignID(c2);
+}
 
-
-
-}*/
 
 
