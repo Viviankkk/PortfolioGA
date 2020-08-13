@@ -2,7 +2,8 @@
 // Created by Vivian Kang on 6/25/20.
 //
 
-#include "OperatorOverloading.h"
+#include "Utility.h"
+#include "sqlite3.h"
 #include <vector>
 #include <iostream>
 #include <sstream>
@@ -21,74 +22,6 @@ vector<double> operator+ (const vector<double>& a, const vector<double>&  b) {
     }
     return c;
 }
-/*template <class T>
-vector<T> operator+ (const vector<T>& a, const vector<T>&  b) {
-    if (a.size()!=b.size()) {
-        cout<<"Vector sizes do not match!"<<endl;
-        return NULL;
-    }
-    vector<T> c(a.size(),0);
-    for(int i=0;i<a.size();i++){
-        c[i]=a[i]+b[i];
-    }
-    return c;
-}*/
-
-/*template <class T>
-vector<vector<T>> operator+ (vector<vector<T>>&  a, vector<vector<T>>&  b) {
-    if (a.size()!=b.size() || a[0].size()!=b[0].size()) {
-        cout<<"Matrix sizes do not match!"<<endl;
-        return NULL;
-    }
-    vector<vector<T>> c(a.size(),(a[0].size()));
-    for(int i=0;i<a.size();i++){
-        for(int j=0;j<a[0].size();j++){
-            c[i][j]=a[i][j]+b[i][j];
-        }
-    }
-    return c;
-}*/
-
-template <class T>
-vector<T> operator- (const vector<T>&  a, const vector<T>&  b) {
-    if (a.size()!=b.size()) {
-        cout<<"Vector sizes do not match!"<<endl;
-        return NULL;
-    }
-    vector<T> c(a.size(),0);
-    for(int i=0;i<a.size();i++){
-        c[i]=a[i]-b[i];
-    }
-    return c;
-}
-
-/*template <class T>
-vector<vector<T>> operator- (vector<vector<T>>&  a, vector<vector<T>>&  b) {
-    if (a.size()!=b.size() || a[0].size()!=b[0].size()) {
-        cout<<"Matrix sizes do not match!"<<endl;
-        return NULL;
-    }
-    vector<vector<T>> c(a.size(),(a[0].size()));
-    for(int i=0;i<a.size();i++){
-        for(int j=0;j<a[0].size();j++){
-            c[i][j]=a[i][j]-b[i][j];
-        }
-    }
-    return c;
-}*/
-
-/*template <class T>
-T operator* (vector<T>&  a, vector<T>&  b) {
-    if (a.size()!=b.size()) {
-        cout<<"Vector sizes do not match!"<<endl;
-        return NULL;
-    }
-    T sum;
-    for(int i=0;i<a.size();i++){
-        sum+=a[i]*b[i];
-    }
-    return sum;
-}*/
 
 
 vector<double> operator* (const vector<double>&  a, const double& b) {
@@ -105,18 +38,22 @@ vector<double> operator/ (const vector<double>&  a, const double& b) {
     }
     return c;
 }
-/*template <class T>
-vector<vector<T>> operator* (vector<vector<T>>&  a, vector<vector<T>>&  b) {
-    if (a[0].size()!=b.size()) {
+
+vector<double> operator* (vector<vector<double>>&  a, vector<double>&  b) {
+    if (a.size()!=b.size()) {
         cout<<"Matrix sizes do not match!"<<endl;
-        return NULL;
+        return b;
     }
-    vector<vector<T>> c(a.size(),(b[0].size()));
-    for(int i=0;i<a.size();i++){
-        a[i]*
+    vector<double> c(a[0].size());
+    for(int i=0;i<a[0].size();i++){
+        c[i]=0;
+        for (int j=0;j<a.size();j++){
+            c[i]+=a[j][i]*b[j];
+        }
     }
     return c;
-}*/
+}
+
 double sum(vector<double>& vec){
     double sum=0;
     for(int i=0;i<vec.size();i++){
@@ -169,4 +106,41 @@ string DateAhead(string date,int n){
     if (af->tm_mday<10) day="0"+to_string(af->tm_mday);
     else day=to_string(af->tm_mday);
     return to_string(af->tm_year+1900)+"-"+month+"-"+day;//asctime(af);
+}
+
+int DateDifference(string st,string ed){
+    tm ST = {}; tm ED={};
+    stringstream ss(st);
+    ss >> get_time(&ST, "%Y-%m-%d");
+    stringstream ss2(ed);
+    ss2>>get_time(&ED,"%Y-%m-%d");
+    time_t t1=mktime(&ST);
+    time_t t2=mktime(&ED);
+    double difference = std::difftime(t2, t1) / (60 * 60 * 24);
+    return int(difference);
+}
+
+void GetMaxMin(double& max,double& min,string columnname,sqlite3* db){
+    string sql="Select max("+columnname+"),min("+columnname+") from FundamentalData;";
+    int rc = 0;
+    char* error = NULL;
+    char** results = NULL;
+    int rows, columns;
+    // A result table is memory data structure created by the sqlite3_get_table() interface.
+    // A result table records the complete query results from one or more queries.
+    sqlite3_get_table(db, sql.c_str(), &results, &rows, &columns, &error);
+    if (rc)
+    {
+        cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
+        sqlite3_free(error);
+    }
+    else{
+    max=strtod(results[1+1],NULL);
+    min=strtod(results[1+2],NULL);
+    // This function properly releases the value array returned by sqlite3_get_table()
+    sqlite3_free_table(results);}
+}
+
+double Normalize(double max,double min,double value){
+    return (value-min)/(max-min);
 }

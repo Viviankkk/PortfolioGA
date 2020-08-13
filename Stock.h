@@ -36,17 +36,9 @@ public:
     {}
 
     ~Trade() {}
-    //string Getdate() const{return date;}
-    //float Getopen() const{return open;}
-    //float Gethigh() const{return high;}
-    //float Getlow() const{return low;}
-    //float Getclose() const{return close;}
-    //float Getadjclose() const{return adjusted_close;}
-    //int64_t Getvolume() const{return volume;}
+    \
     int InsertATrade(string symbol,string Table,sqlite3 *db){
         char stockDB_insert_table[512];
-        //if (date=="")
-        //    return 0;
         sprintf(stockDB_insert_table,
                 "INSERT INTO %s (symbol, date, open, high, low, close, adjusted_close, volume, return) VALUES( \"%s\", \"%s\", %f, %f, %f, %f, %f, %lld,%f)",Table.c_str(),symbol.c_str(), date.c_str(), open, high, low, close, adjusted_close, volume,ret);
         if (InsertTable(stockDB_insert_table, db) == -1)
@@ -82,26 +74,28 @@ protected:
     float Low52Weeks;
     float MA50Days;
     float MA200Days;
+    float ROA;
+    float EPSEstimate;
     int64_t Cap;
 public:
     Fundamental(string symbol):Reference(symbol){}
-    Fundamental(string symbol,float PE,float Div,float B,float High,float Low,float MA50,float MA200,int64_t cap):
-    Reference(symbol),PERatio(PE),DivYield(Div),Beta(B),High52Weeks(High),Low52Weeks(Low),MA50Days(MA50),MA200Days(MA200),Cap(cap){}
-    Fundamental(const Fundamental& F):Reference(F.symbol),PERatio(F.PERatio),DivYield(F.DivYield),Beta(F.Beta),High52Weeks(F.High52Weeks),Low52Weeks(F.Low52Weeks),MA50Days(F.MA50Days),MA200Days(F.MA200Days),Cap(F.Cap){}
-    Fundamental(){ PERatio=DivYield=Beta=High52Weeks=Low52Weeks=MA50Days=MA200Days=0;Cap=0;}
+    Fundamental(string symbol,float PE,float Div,float B,float High,float Low,float MA50,float MA200,int64_t cap,float roa,float epsest):
+    Reference(symbol),PERatio(PE),DivYield(Div),Beta(B),High52Weeks(High),Low52Weeks(Low),MA50Days(MA50),MA200Days(MA200),Cap(cap),ROA(roa),EPSEstimate(epsest){}
+    Fundamental(const Fundamental& F):Reference(F.symbol),PERatio(F.PERatio),DivYield(F.DivYield),Beta(F.Beta),High52Weeks(F.High52Weeks),Low52Weeks(F.Low52Weeks),MA50Days(F.MA50Days),MA200Days(F.MA200Days),Cap(F.Cap),ROA(F.ROA),EPSEstimate(F.EPSEstimate){}
+    Fundamental(){ PERatio=DivYield=Beta=High52Weeks=Low52Weeks=MA50Days=MA200Days=ROA=0;Cap=0;EPSEstimate=0;}
     ~Fundamental(){}
-    void AddFundamental(float PE,float Div,float B,float High,float Low,float MA50,float MA200,int64_t cap){
-        PERatio=PE;DivYield=Div;Beta=B;High52Weeks=High;Low52Weeks=Low;MA50Days=MA50;MA200Days=MA200;Cap=cap;
+    void AddFundamental(float PE,float Div,float B,float High,float Low,float MA50,float MA200,int64_t cap,float roa,float epsest){
+        PERatio=PE;DivYield=Div;Beta=B;High52Weeks=High;Low52Weeks=Low;MA50Days=MA50;MA200Days=MA200;Cap=cap;ROA=roa;EPSEstimate=epsest;
     }
     int InsertFundamental(sqlite3* db){
         char stockDB_insert_table[512];
-        sprintf(stockDB_insert_table, "INSERT INTO FundamentalData (symbol, PERatio, DividendYield, Beta, High52Weeks, Low52Weeks, MA50Days, MA200Days,Capital) VALUES( \"%s\", %f, %f, %f, %f, %f, %f, %f,%lld)",  symbol.c_str(), PERatio,DivYield,Beta,High52Weeks,Low52Weeks,MA50Days,MA200Days,Cap);
+        sprintf(stockDB_insert_table, "INSERT INTO FundamentalData (symbol, PERatio, DividendYield, Beta, High52Weeks, Low52Weeks, MA50Days, MA200Days,Capital,ReturnOnAssets,EPSEstimate) VALUES( \"%s\", %f, %f, %f, %f, %f, %f, %f,%lld,%f,%f)",  symbol.c_str(), PERatio,DivYield,Beta,High52Weeks,Low52Weeks,MA50Days,MA200Days,Cap,ROA,EPSEstimate);
         if (InsertTable(stockDB_insert_table, db) == -1)
             return -1;
         return 0;
     }
     friend ostream& operator<<(ostream &out,const Fundamental& F){
-        out<<"P/E Ratio: "<<F.PERatio<< " Dividend Yield: "<<F.DivYield<<" Beta: "<<F.Beta<<" High 52 Weeks: "<<F.High52Weeks<<" Low 52 Weeks: "<<F.Low52Weeks<< " MA 50 days: "<<F.MA50Days<<" MA 200 days: "<<F.MA200Days<<" Capital: "<<F.Cap<<endl;
+        out<<"P/E Ratio: "<<F.PERatio<< " Dividend Yield: "<<F.DivYield<<" Beta: "<<F.Beta<<" High 52 Weeks: "<<F.High52Weeks<<" Low 52 Weeks: "<<F.Low52Weeks<< " MA 50 days: "<<F.MA50Days<<" MA 200 days: "<<F.MA200Days<<" Capital: "<<F.Cap<<"Return on Assets:"<<F.ROA<<"EPS Estimate"<<F.EPSEstimate<<endl;
         return out;
     }
 
@@ -128,21 +122,23 @@ public:
 
     vector<string> GetDates()const {return dates;}
     vector<Trade> GetTrades()const {return trades;}
-    //void addRet(vector<double>& Ret){ dailyret=Ret;}
-    //void addRet(double R){ret.push_back(R);}
+    void addRet(double R){ret.push_back(R);}
     void addTrade(Trade aTrade) { trades.push_back(aTrade);}
-    //void addRetVec(vector<double>& ret_) {ret=ret_;}
     void addClose(double adjclose){close.push_back(adjclose);}
     void adddates(string date){dates.push_back(date);}
     void CalRet(int period){
         //int prev=close[0];
+        vector<double>().swap(ret);
         ret.resize(close.size()-period);
         for(int i=period;i<close.size();i++){
           ret[i-period]=close[i]/close[i-period]-1;
         }
     }
+    vector<double> GetClose(){
+        return close;
+    }
     double CalculatePnL(){
-        double temp= close[close.size()-1]/close[0]-1;
+        double temp= close.back()/close.front()-1;
         return temp;
     }
 };
@@ -151,56 +147,17 @@ class Stock:public Market,public Fundamental{
 public:
     Stock(){}
     Stock(string symbol_):Reference(symbol_) {vector<Trade>().swap(trades);vector<double>().swap(ret);}
-    Stock(string symbol_,vector<Trade> trades_,vector<double> ret_,float PE,float Div,float B,float High,float Low,float MA50,float MA200,int64_t cap):
-    Reference(symbol_),Market(symbol_,trades_,ret_),Fundamental(symbol_,PE,Div,B,High,Low,MA50,MA200,cap){}
+    Stock(string symbol_,vector<Trade> trades_,vector<double> ret_,float PE,float Div,float B,float High,float Low,float MA50,float MA200,int64_t cap,float roa,float epsest):
+    Reference(symbol_),Market(symbol_,trades_,ret_),Fundamental(symbol_,PE,Div,B,High,Low,MA50,MA200,cap,roa,epsest){}
     Stock(const Stock& S):Reference(S.symbol),
-    Market(S.symbol,S.trades,S.ret,S.close,S.dates),Fundamental(S.symbol,S.PERatio,S.DivYield,S.Beta,S.High52Weeks,S.Low52Weeks,S.MA50Days,S.MA200Days,S.Cap){}
+    Market(S.symbol,S.trades,S.ret,S.close,S.dates),Fundamental(S.symbol,S.PERatio,S.DivYield,S.Beta,S.High52Weeks,S.Low52Weeks,S.MA50Days,S.MA200Days,S.Cap,S.ROA,S.EPSEstimate){}
     ~Stock(){}
 
-    //vector<double> GetRet()const{return dailyret;}
     bool operator==(const Stock& other){
         return (symbol==other.symbol);
     }
 };
-/*class Stock
-{
-private:
-    string symbol;
-    vector<Trade> trades;
-    Fundamental Fdata;
-    vector<double> dailyret;
 
-public:
-    Stock(){symbol="";vector<Trade>().swap(trades);}//wipe out trades
-    Stock(string symbol_) :symbol(symbol_)
-    {
-        vector<Trade>().swap(trades);
-        vector<double>().swap(dailyret);
-        //vector<double>().swap(rf);
-    }
-    Stock(string symbol_,vector<Trade> trades_,Fundamental Fdata_,vector<double> dailyret_):
-    symbol(symbol_),trades(trades_),Fdata(Fdata_),dailyret(dailyret_) {}
-    Stock(const Stock& Stock_):symbol(Stock_.symbol),trades(Stock_.trades),Fdata(Stock_.Fdata),dailyret(Stock_.dailyret) {}
-    ~Stock() {}
-    string GetSymbol()const {return symbol;}
-    vector<Trade> GetTrades()const {return trades;}
-    void addTrade(Trade aTrade) { trades.push_back(aTrade);}
-    void addTradeVec(vector<Trade>& Trades) { trades=Trades;}
-    void addFundamental(Fundamental& F) { Fdata=F;}
-    void addRet(vector<double>& Ret){ dailyret=Ret;}
-    //void addRf(vector<double>& Rf) { rf=Rf;}
-    friend ostream& operator << (ostream& out, const Stock& s)
-    {
-        out << "Symbol: " << s.symbol << endl;
-        for (vector<Trade>::const_iterator itr = s.trades.begin(); itr != s.trades.end(); itr++)
-            out << *itr;
-        out<<s.Fdata;
-        for (auto itr=s.dailyret.begin();itr!= s.dailyret.end();itr++)
-            out<<*itr<<"  ";
-        out<<endl;
-        return out;
-    }
-};*/
 
 
 #endif //PORTFOLIOGA_STOCK_H

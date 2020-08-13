@@ -1,7 +1,6 @@
 #include <iostream>
 #include <sqlite3.h>
 #include <thread>
-#include <iomanip>
 #include "database.h"
 #include "marketdata.h"
 #include "Stock.h"
@@ -9,9 +8,15 @@
 #include "FundamentalData.h"
 #include "Portfolio.h"
 #include "Population.h"
+#include "Gnuplot.h"
+#include "Tests.h"
+#include <chrono>
+#include <vector>
+#include <string>
+#include <fstream>
 
-#define NUM_THREAD 8
-#define NUM_OF_STOCKS 494
+#define NUM_THREAD 5
+#define NUM_OF_STOCKS 496
 
 using namespace std;
 
@@ -29,7 +34,11 @@ int main() {
         cout<<"A. Retrieve and populate S&P500 constituents."<<endl;
         cout<<"B. Retrieve and populate market data for S&P500 stocks and calculate return."<<endl;
         cout<<"C. Retrieve and populate fundamental data for S&P500 stocks."<<endl;
-        cout<<"D. Retrieve data from database."<<endl;
+        cout<<"D. Back test For Exhibition. "<<endl;
+        cout<<"E. Probation test For Exhibition."<<endl;
+        cout<<"F. Tune Parameters."<<endl;
+        cout<<"G. Back test for Stats."<<endl;
+        cout<<"H. Probation test for Stats."<<endl;
         cout<<"X. Exit."<<endl;
         cout<<endl<<endl;
         cin>>selection;
@@ -69,7 +78,7 @@ int main() {
                 if(CreateMarketTable("MarketData",stockDB)==-1) return -1;
                 //Retrieving Data for S&P500 stocks
                 cout<<"Retrieving Market Data..."<<endl;
-                clock_t t0 = clock();
+                std::chrono::steady_clock::time_point begin=std::chrono::steady_clock::now();
                 vector<Market> StockArray;
                 //MultiThreading for Retrieving Data
                 /*thread Retrieve[NUM_THREAD];
@@ -87,11 +96,14 @@ int main() {
                 vector<string>::iterator st=stocklist.begin();
                 vector<string>::iterator ed=stocklist.end();
                 MultiThreadMarketRetrieve(st,ed,StockArray,stockDB);
-                cout << "Time elapsed for retrieving data: " << setprecision(4) <<
-                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+                std::cout << "Time for Retrieving Market Data (sec) = " <<
+                          (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0
+                          <<std::endl;
                 //Inserting data to database
                 cout<<"Inserting data to database..."<<endl;
-                t0=clock();
+
+                begin=std::chrono::steady_clock::now();
                 sqlite3_exec(stockDB,"begin;",0,0,0);
                 sqlite3_exec(stockDB,"PRAGMA synchronous = OFF; ",0,0,0);
                 for(auto itr=StockArray.begin();itr!=StockArray.end();itr++) {
@@ -102,18 +114,20 @@ int main() {
                     }
                 }
                 sqlite3_exec(stockDB,"commit;",0,0,0);
-                cout << "Time elapsed for inserting data to database: " << setprecision(4) <<
-                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+                end = std::chrono::steady_clock::now();
+                std::cout << "Time for Inserting to Database (sec) = " <<
+                          (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0
+                          <<std::endl;
                 cout<<endl<<endl;
                 //Updating Daily Return
                 /*cout<<"Upadting Daily Return to MarketData..."<<endl;
-                t0=clock();
+
                 //if(AddColumn("DailyReturn","MarketData","REAL",stockDB)==-1) return -1;
                 for(auto itr=stocklist.begin();itr!=stocklist.end();itr++){
                     if(UpdateDailyRet(*itr,"MarketData",stockDB)==-1) return -1;
                 }
-                cout << "Time elapsed for updating: " << setprecision(4) <<
-                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;*/
+                */
+
 
                 //Deal with Index
                 cout<<"Retrieving Reference Data..."<<endl;
@@ -146,7 +160,7 @@ int main() {
                 //Get consituents from database
                 vector<string> stocklist;
                 if(GetSymbols(stockDB,stocklist)==-1) return -1;
-                //Create Table Market Data
+                //Create Table Fundamental Data
                 std::string stockDB_drop_table = "DROP TABLE IF EXISTS FundamentalData;";
                 if (DropTable(stockDB_drop_table.c_str(), stockDB) == -1)
                     return -1;
@@ -160,7 +174,9 @@ int main() {
                                               "Low52Weeks REAL NOT NULL,"\
                                               "MA50Days REAL NOT NULL,"\
                                               "MA200Days REAL NOT NULL,"\
-                                              "Capital UNSIGNED BIG INT NOT NULL,"
+                                              "Capital UNSIGNED BIG INT NOT NULL,"\
+                                              "ReturnOnAssets REAL NOT NULL,"\
+                                              "EPSEstimate REAL NOT NULL,"\
                                               "PRIMARY KEY(symbol)"\
                                               "FOREIGN KEY(symbol) references SP500(symbol)"\
                                               "ON DELETE CASCADE ON UPDATE CASCADE"\
@@ -168,7 +184,8 @@ int main() {
 
                 if (CreateTable(stockDB_create_table.c_str(), stockDB) == -1)
                     return -1;
-                clock_t t0 = clock();
+                //clock_t t0 = clock();
+                std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
                 //MultiThreading for Retrieving Data
                 thread Retrieve[NUM_THREAD];
                 vector<Fundamental> FArray;
@@ -183,11 +200,14 @@ int main() {
                 }
                 for(int i=0;i<NUM_THREAD;i++) Retrieve[i].join();
                 //MultiThreadFundamentalRetrieve(st,stocklist.end(),FArray);
-                cout << "Time elapsed for retrieving data: " << setprecision(4) <<
-                     (clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
+                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+                std::cout << "Time for Retrieving Fundamental Data (sec) = " <<
+                          (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0
+                          <<std::endl;
 
 
-                t0 = clock();
+
+                begin=std::chrono::steady_clock::now();
 
                 sqlite3_exec(stockDB,"begin;",0,0,0);
                 sqlite3_exec(stockDB,"PRAGMA synchronous = OFF; ",0,0,0);
@@ -196,8 +216,10 @@ int main() {
                 }
                 sqlite3_exec(stockDB,"commit;",0,0,0);
 
-                cout << "Time elapsed for inserting into database : " << setprecision(4) <<(clock() - t0) * 1.0 / CLOCKS_PER_SEC / 60.0 << " min" << endl << endl;
-
+                end = std::chrono::steady_clock::now();
+                std::cout << "Time for Inserting to Database (sec) = " <<
+                          (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0
+                          <<std::endl;
                 /*//Displaying
                 string stockDB_select_table = "SELECT * FROM FundamentalData;";
                 if (DisplayTable(stockDB_select_table.c_str(), stockDB) == -1) return -1;
@@ -207,69 +229,260 @@ int main() {
             case 'd':
             case 'D':
             {
-                //Date For historical data
-                string startdate="2017-01-01";
-                string enddate="2018-12-31";
-                string backtest_st="2019-01-01";
-                string backtest_ed="2019-12-31";
-
-                vector<double> PnLs;
-                double cumulative=1;
-
-                for(int i=0;i<13;i++) {
-                    //Get SPY and US10Y
-                    Stock SPY("SPY");
-                    Stock Rf("^TNX");
-                    if (RetrieveMarketDataFromDB(SPY, "SPY", startdate, enddate, stockDB) == -1) return -1;
-                    if (RetrieveMarketDataFromDB(SPY, "TNX", startdate, enddate, stockDB) == -1) return -1;
-                    int length = SPY.GetDates().size();
-                    //Get consituents from database
-                    vector<string> stocklist;
-                    vector<Stock> stocks;
-                    //vector<string> removelist;
-                    //map<string,Stock> stockmap;
-                    if (GetSymbols(stockDB, stocklist) == -1) return -1;
-
-                    for (auto itr = stocklist.begin(); itr != stocklist.end(); itr++) {
-                        Stock mystock(*itr);
-                        if (RetrieveMarketDataFromDB(mystock, "MarketData", startdate, enddate, stockDB) == -1)
-                            return -1;
-                        if (RetrieveFundamentalDataFromDB(mystock, stockDB) == -1) return -1;
-                        if (mystock.GetDates().size() != length) { continue; }
-                        mystock.CalRet(PERIOD);
-                        stocks.push_back(mystock);
-                        //stockmap[*itr]=mystock;
+                bool subEND=false;
+                while(!subEND) {
+                    cout << endl;
+                    cout << "Choose Fitness Function:" << endl;
+                    cout << "1. Fitness = Return/Risk" << endl;
+                    cout << "2. Fitness = V*P*Q + V*V*A" << endl;
+                    cout << "3. Fitness = Scaled(Return/Risk) + Scaled(V*P*Q + V*V*A)" << endl;
+                    cout << "0. Return Menu" << endl;
+                    char subselection;
+                    cin>>subselection;
+                    switch(subselection) {
+                        case '2':{
+                        TestMetrics BK;
+                        BK.date_st = "2020-01-01";
+                        BK.date_ed = "2020-06-17";
+                        string startdate = "2019-06-30";
+                        string enddate = "2019-12-31";
+                        BuyandHold(BK,startdate,enddate,stockDB,'2');
+                        plotCumulative(BK.cret,BK.crefret);
+                        }
+                        break;
+                        case '1':
+                        case '3':{
+                            TestMetrics BK;
+                            //Date For historical data
+                            string startdate="2018-01-01";
+                            string enddate="2019-12-31";
+                            //Date For BackTest data
+                            BK.date_st="2020-01-01";
+                            BK.date_ed="2020-06-17";
+                            MonthlyRebalancing(BK,startdate,enddate,stockDB,subselection);
+                            plotCumulative(BK.cret,BK.crefret);
+                        }
+                        break;
+                        case'0':{
+                            subEND=true;
+                            break;
+                        }
+                        default:{
+                            cout<<"Invalid Input: Please re-enter your selection."<<endl<<endl<<endl<<endl;
+                            cin.clear();cin.sync();
+                            break;
+                        }
                     }
-                    Portfolio Hold = GeneticAlgorithm(stocks);
-                    cout << Hold;
-
-                    double PnL = CalPnL(Hold, backtest_st, DateAhead(backtest_st, PERIOD/5*7-1), stockDB);
-                    PnLs.push_back(PnL);
-                    cumulative*=(1+PnL);
-                    cout <<backtest_st<<" to "<<DateAhead(backtest_st, PERIOD/5*7-1)<<": "<<PnL<<endl;
-
-                    startdate = DateAhead(startdate, PERIOD/5*7 );
-                    enddate = DateAhead(enddate, PERIOD/5*7 );
-                    backtest_st = DateAhead(backtest_st, PERIOD/5*7 );
-
                 }
-
-                cout<<"Annual Return: "<<(cumulative-1)*100<<"%"<<endl;
-
-
-
-
-
 
             }
             break;
             case 'e':
             case 'E':
             {
-                string startdate="2018-12-31";
-                string test=DateAhead(startdate,20);
-                cout<<test;
+                bool subEND=false;
+                while(!subEND) {
+                    cout << endl;
+                    cout << "Choose Fitness Function:" << endl;
+                    cout << "1. Fitness = Return/Risk" << endl;
+                    cout << "2. Fitness = V*P*Q + V*V*A" << endl;
+                    cout << "3. Fitness = Scaled(Return/Risk) + Scaled(V*P*Q + V*V*A)" << endl;
+                    cout << "0. Return Menu" << endl;
+                    char subselection;
+                    cin>>subselection;
+                    switch(subselection) {
+                        case '1':
+                        case '2':
+                        case '3':{
+                            TestMetrics BK;
+                            //Date For historical data
+                            string startdate="2018-07-01";
+                            string enddate="2020-06-30";
+                            //Date For BackTest data
+                            BK.date_st="2020-07-01";
+                            BK.date_ed="2020-07-20";
+                            BuyandHold(BK,startdate,enddate,stockDB,subselection);
+                            plotCumulative(BK.cret,BK.crefret);
+                        }
+                            break;
+                        case'0':{
+                            subEND=true;
+                            break;
+                        }
+                        default:{
+                            cout<<"Invalid Input: Please re-enter your selection."<<endl<<endl<<endl<<endl;
+                            cin.clear();cin.sync();
+                            break;
+                        }
+                    }
+                }
+
             }
+                break;
+            case 'f':
+            case 'F':{
+                bool subEND=false;
+                while(!subEND) {
+                    cout << endl;
+                    cout << "Choose Fitness Function:" << endl;
+                    cout << "1. Fitness = Return/Risk" << endl;
+                    cout << "2. Fitness = V*P*Q + V*V*A" << endl;
+                    cout << "3. Fitness = Scaled(Return/Risk) + Scaled(V*P*Q + V*V*A)" << endl;
+                    cout << "0. Return Menu" << endl;
+                    char subselection;
+                    cin>>subselection;
+                    switch(subselection) {
+                        case '1':
+                        case '2':
+                        case '3':{
+                            string startdate="2019-06-30";
+                            string enddate="2019-12-31";
+
+                            Stock SPY("SPY");
+                            if (RetrieveMarketDataFromDB(SPY, "SPY", startdate, enddate, stockDB) == -1) return -1;
+                            int length = SPY.GetDates().size();
+                            vector<string> stocklist;
+
+                            if (GetSymbols(stockDB, stocklist) == -1) return -1;
+                            vector<Stock> stocks;
+                            for (auto itr = stocklist.begin(); itr != stocklist.end(); itr++) {
+                                Stock mystock(*itr);
+                                if (RetrieveMarketDataFromDB(mystock, "MarketData", startdate, enddate, stockDB) == -1)
+                                    return -1;
+                                if (RetrieveFundamentalDataFromDB(mystock, stockDB) == -1) return -1;
+                                if (mystock.GetDates().size() != length) { continue; }
+                                mystock.CalRet(PERIOD);
+                                stocks.push_back(mystock);
+
+                            }
+                            vector<double> MaxFitness(MAX_ALLOWABLE_GENERATIONS,0);
+                            for (int i=0;i<20;i++) {
+                                vector<double> temp;
+                                Portfolio Hold = GeneticAlgorithm(stocks, temp, subselection);
+                                for(int j=0;j<MAX_ALLOWABLE_GENERATIONS;j++){
+                                    MaxFitness[j]=(MaxFitness[j]*(i)+temp[j])/(i+1);
+                                }
+                            }
+
+                            plotResults(MaxFitness,MAX_ALLOWABLE_GENERATIONS,"Generations");
+
+                        }
+                            break;
+                        case'0':{
+                            subEND=true;
+                            break;
+                        }
+                        default:{
+                            cout<<"Invalid Input: Please re-enter your selection."<<endl<<endl<<endl<<endl;
+                            cin.clear();cin.sync();
+                            break;
+                        }
+                    }
+                }
+                cin.clear();cin.sync();
+
+            }
+                break;
+            case 'g':
+            case 'G':
+            {
+                bool subEND=false;
+                while(!subEND) {
+                    cout << endl;
+                    cout << "Choose Fitness Function:" << endl;
+                    cout << "1. Fitness = Return/Risk" << endl;
+                    cout << "2. Fitness = V*P*Q + V*V*A" << endl;
+                    cout << "3. Fitness = Scaled(Return/Risk) + Scaled(V*P*Q + V*V*A)" << endl;
+                    cout << "4. Go through all fitness functions"<<endl;
+                    cout << "0. Return Menu" << endl;
+                    char subselection;
+                    cin>>subselection;
+                    ofstream myfile;
+                    myfile.open ("Backtest.txt",ios::out | ios::app);
+                    switch(subselection) {
+                        case '2': {
+                            StatTest(myfile,subselection,stockDB,"2019-06-30","2019-12-31","2020-01-01","2020-06-17",30,true);
+                        }
+                            break;
+                        case '1':
+                        case '3':{
+                            StatTest(myfile,subselection,stockDB,"2018-01-01","2019-12-31","2020-01-01","2020-06-17",30,true);
+                        }
+                            break;
+                        case '4':{
+                            StatTest(myfile,'1',stockDB,"2018-01-01","2019-12-31","2020-01-01","2020-06-17",30,true);
+                            StatTest(myfile,'2',stockDB,"2019-06-30","2019-12-31","2020-01-01","2020-06-17",30,true);
+                            StatTest(myfile,'3',stockDB,"2018-01-01","2019-12-31","2020-01-01","2020-06-17",30,true);
+                        }
+                            break;
+                        case'0':{
+                            subEND=true;
+                            myfile.close();
+                            break;
+                        }
+                        default:{
+                            cout<<"Invalid Input: Please re-enter your selection."<<endl<<endl<<endl<<endl;
+                            cin.clear();cin.sync();
+                            break;
+                        }
+                    }
+                }
+
+            }
+            break;
+            case'H':
+            case'h':
+            {
+                bool subEND=false;
+                while(!subEND) {
+                    cout << endl;
+                    cout << "Choose Fitness Function:" << endl;
+                    cout << "1. Fitness = Return/Risk" << endl;
+                    cout << "2. Fitness = V*P*Q + V*V*A" << endl;
+                    cout << "3. Fitness = Scaled(Return/Risk) + Scaled(V*P*Q + V*V*A)" << endl;
+                    cout << "4. Go through all fitness functions"<<endl;
+                    cout << "0. Return Menu" << endl;
+                    char subselection;
+                    cin>>subselection;
+                    //Date For historical data
+                    string startdate="2018-07-01";
+                    string enddate="2020-06-30";
+                    //Date For BackTest data
+                    string date_st="2020-07-01";
+                    string date_ed="2020-07-20";
+                    ofstream myfile;
+                    myfile.open ("Probationtest.txt",ios::out | ios::app);
+                    switch(subselection) {
+                        case '2': {
+                            StatTest(myfile,subselection,stockDB,"2020-01-30",enddate,date_st,date_ed,30,false);
+                        }
+                            break;
+                        case '1':
+                        case '3':{
+                            StatTest(myfile,subselection,stockDB,startdate,enddate,date_st,date_ed,30,false);
+                        }
+                            break;
+                        case '4':{
+                            StatTest(myfile,'1',stockDB,startdate,enddate,date_st,date_ed,30,false);
+                            StatTest(myfile,'2',stockDB,"2020-01-30",enddate,date_st,date_ed,30,false);
+                            StatTest(myfile,'3',stockDB,startdate,enddate,date_st,date_ed,30,false);
+                        }
+                            break;
+                        case'0':{
+                            subEND=true;
+                            myfile.close();
+                            break;
+                        }
+                        default:{
+                            cout<<"Invalid Input: Please re-enter your selection."<<endl<<endl<<endl<<endl;
+                            cin.clear();cin.sync();
+                            break;
+                        }
+                    }
+                }
+
+            }
+
             break;
             case 'x':
             case 'X':

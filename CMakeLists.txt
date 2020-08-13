@@ -6,8 +6,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -lcurl -lsqlite3")
 
 include_directories(json)
 
+
 add_executable(PortfolioGA
         json/json-forwards.h
         json/json.h
         jsoncpp.cpp
-        main.cpp database.cpp database.h marketdata.cpp marketdata.h Stock.h FundamentalData.cpp FundamentalData.h Portfolio.h Portfolio.cpp OperatorOverloading.cpp OperatorOverloading.h Population.cpp Population.h)
+        main.cpp database.cpp database.h marketdata.cpp marketdata.h Stock.h FundamentalData.cpp FundamentalData.h Portfolio.h Portfolio.cpp Utility.cpp Utility.h Population.cpp Population.h Gnuplot.cpp Gnuplot.h Tests.cpp Tests.h)

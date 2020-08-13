@@ -196,7 +196,7 @@ int GetSymbols(sqlite3* db,vector<string>& Symbolist){
     int rc = 0;
     char* error = NULL;
     vector<string>* ptrSymbolList=&Symbolist;
-    cout<<"Retrieving S&P500 constituents from database..."<<endl;
+    //cout<<"Retrieving S&P500 constituents from database..."<<endl;
     string sqlselect="SELECT symbol from SP500;";
     rc=sqlite3_exec(db,sqlselect.c_str(),GetSymbolCallBack,ptrSymbolList,&error);
     if (rc){
@@ -213,15 +213,13 @@ static int GetRetCallBack(void *list, int count, char** results, char **columns)
     //ptr->addTrade(aTrade);
     ptr->adddates(results[0]);
     ptr->addClose(strtod(results[1],NULL));
-    //ptr->addRet(strtod(results[8],NULL));
+    //ptr->addRet(strtod(results[2],NULL));
     return 0;
 }
 
 int RetrieveMarketDataFromDB(Stock& S, string tablename,string startdate,string enddate,sqlite3* db){
     int rc = 0;
     char* error = NULL;
-    //vector<double> ret;
-    //vector<double>* ptrret=&ret;
     Stock* ptr=&S;
     //string sqlselect="select * from " +tablename+" where symbol=\'"+S.GetSymbol()+"\';";
     string sqlselect="SELECT date,adjusted_close FROM  "+tablename+" where symbol=\'"+S.GetSymbol()+"\' and date<=\'"+enddate+"\' and date>=\'"+startdate+"\';";
@@ -233,72 +231,13 @@ int RetrieveMarketDataFromDB(Stock& S, string tablename,string startdate,string 
     }
     return 0;
 }
-/*int RetrieveMarketDataFromDB(Stock& S, string tablename,sqlite3* db)
-{
-    int rc = 0;
-    char* error = NULL;
-    string sql_select="SELECT * FROM "+tablename+" where symbol=\'"+S.GetSymbol()+"\';";
-    char** results = NULL;
-    int rows, columns;
-    // A result table is memory data structure created by the sqlite3_get_table() interface.
-    // A result table records the complete query results from one or more queries.
-    sqlite3_get_table(db, sql_select.c_str(), &results, &rows, &columns, &error);
-    if (rc)
-    {
-        cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
-        sqlite3_free(error);
-        return -1;
-    }
-    //symbol date open high low close adjusted_close volume DailyReturn
-    //vector<Trade> trades;
-    vector<double> dailyret;
-
-    for (int rowCtr = 1; rowCtr <= rows; ++rowCtr)
-    {
-        //int colst=(rowCtr * columns);
-        vector<string> temp(7);
-        for (int colCtr = 1; colCtr < columns; ++colCtr)
-        {
-            // Determine Cell Position
-            int cellPosition = (rowCtr * columns) + colCtr;
-
-            // Display Cell Value
-
-            temp[colCtr-1]=results[cellPosition];
-        }
-        //string temp=results[colst+8];
-        //Trade ATrade(results[colst+1],strtod(results[colst+2],NULL),strtod(results[colst+3],NULL),strtod(results[colst+4],NULL),strtod(results[colst+5],NULL),strtod(results[colst+6],NULL),strtod(results[colst+7],NULL));
-
-        //S.addTrade(ATrade);
-        //dailyret.push_back(temp);
-    }
-    // This function properly releases the value array returned by sqlite3_get_table()
-    sqlite3_free_table(results);
-    S.addRet(dailyret);
-    return 0;
-}*/
-/*int GetReturn(Stock& S,sqlite3* db){
-    int rc = 0;
-    char* error = NULL;
-    vector<double> ret;
-    vector<double>* ptrret=&ret;
-    string sqlselect="select * from MarketData where symbol=\'"+S.GetSymbol()+"\';";
-    rc=sqlite3_exec(db,sqlselect.c_str(),GetRetCallBack,ptrret,&error);
-    if (rc){
-        cerr << "Error executing SQLite3 query: " << sqlite3_errmsg(db) << endl << endl;
-        sqlite3_free(error);
-        return -1;
-    }
-    S.addRet(ret);
-    return 0;
-}*/
 
 int MultiThreadMarketRetrieve(vector<string>::iterator st,vector<string>::iterator ed,vector<Market>& StockArray,sqlite3* stockDB){
     //global initiliation of curl before calling a function
     curl_global_init(CURL_GLOBAL_ALL);
     string stock_url_common = "https://eodhistoricaldata.com/api/eod/";
     string stock_start_date = "2010-01-02";
-    string stock_end_date = "2020-06-20";
+    string stock_end_date = "2020-07-27";
     string api_token = "5ba84ea974ab42.45160048";
     for(auto itr=st;itr!=ed;itr++)
     {
@@ -378,7 +317,7 @@ int RetrieveDataFromYahoo(Market& S)
 {
     string symbol=S.GetSymbol();
     string startTime = getTimeinSeconds("2010-01-01T16:00:00");
-    string endTime = getTimeinSeconds("2020-06-20T16:00:00");
+    string endTime = getTimeinSeconds("2020-07-27T16:00:00");
 
     struct MemoryStruct data;
     data.memory = NULL;
@@ -546,25 +485,3 @@ int RetrieveDataFromYahoo(Market& S)
     return 0;
 }
 
-int UpdateDailyRet(string symbol,string tablename,sqlite3* db){
-    int rc = 0;
-    char* error = NULL;
-    //cout << "Updating daily return to "+tablename+"..." << endl;
-    string sql_update="UPDATE "+tablename+
-                      " SET return=(select c.result from (select"\
-                      " b.date,(b.adjusted_close-a.adjusted_close)/a.adjusted_close as result"\
-                      " from (select *,row_number()over(order by date) as id,* from "+tablename+" where symbol=\'"+symbol+"\') as a"\
-                      " inner join (select *,row_number()over(order by date) as id,* from "+tablename+" where symbol=\'"+symbol+"\') as b"\
-                      " on a.id=b.id-1"\
-                      " where a.symbol=\'"+symbol+"\') as c where "+tablename+".date=c.date)"\
-                      " where symbol=\'"+symbol+"\';";
-    rc = sqlite3_exec(db, sql_update.c_str(), NULL, NULL, &error);
-    if (rc)
-    {
-        cerr << "Error executing SQLite3 statement: " << sqlite3_errmsg(db) << endl << endl;
-        sqlite3_free(error);
-        return -1;
-    }
-    //cout << "Updated." << endl;
-    return 0;
-}

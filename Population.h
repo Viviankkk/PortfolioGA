@@ -5,8 +5,7 @@
 #ifndef PORTFOLIOGA_POPULATION_H
 #define PORTFOLIOGA_POPULATION_H
 
-class Portforlio;
-
+//class Portforlio;
 
 class Population{
 private:
@@ -14,6 +13,9 @@ private:
     double total_fitness;
 public:
     void Sort();
+    void Shuffle() {
+        random_shuffle ( portfolios.begin(), portfolios.end() );
+    }
     Portfolio Roulette();
     void CalFitness(){
         total_fitness=0;
@@ -32,15 +34,13 @@ public:
         auto ptr=portfolios.end();
         return *(ptr-1);
     }
-    /*void CopyPortfolio(vector<Portfolio> elitists){
-        portfolios.insert(portfolios.end(),elitists.begin(),elitists.end());
-    }
-    vector<Portfolio> GetElitists(int num){
+    double GetBestFitness(){
         Sort();
-        return vector<Portfolio>(portfolios.begin(),portfolios.begin()+num+1);
-    }*/
+        return portfolios.back().fitness;
+    }
 
 };
-Portfolio GeneticAlgorithm(vector<Stock>& stocks);
-double CalPnL(Portfolio& P,string st,string ed,sqlite3* stockDB);
+Portfolio GeneticAlgorithm(vector<Stock>& stocks,char sign);
+Portfolio GeneticAlgorithm(vector<Stock>& stocks,vector<double>& Maxfitness,char sign);
+
 #endif //PORTFOLIOGA_POPULATION_H

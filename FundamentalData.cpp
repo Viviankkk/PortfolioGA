@@ -8,6 +8,7 @@
 #include "json/json.h"
 #include "database.h"
 #include "marketdata.h"
+#include "utility.h"
 #include "curl/curl.h"
 #include <mutex>
 #include <sqlite3.h>
@@ -16,15 +17,8 @@ using namespace std;
 std::mutex mylockf;
 int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Fundamental>& FundamentalArray)
 {
-    //sqlite3_exec(db, "begin;", 0, 0, 0);
-    //sqlite3_stmt* stmt;
-    //string stockDB_insert_table = "INSERT INTO FundamentalData VALUES(?, ?, ?, ?, ?, ?, ?, ?)";
-    /*if (sqlite3_prepare_v2(db, stockDB_insert_table.c_str(), stockDB_insert_table.length(), &stmt, 0) != SQLITE_OK)
-    {
-        cerr << "Could not prepare statement." << endl;
-        return -1;
-    }*/
-    float PERatio=0,DivYield=0,Beta=0,High52Weeks=0,Low52Week=0,MA50Days=0,MA200Days=0;
+
+    float PERatio=0,DivYield=0,Beta=0,High52Weeks=0,Low52Week=0,MA50Days=0,MA200Days=0,ROA=0,EPSEstimateNext=0,EPSActual=0;
     int64_t Cap=0;
     for (Json::Value::const_iterator itr = root.begin(); itr != root.end(); itr++)
     {
@@ -43,6 +37,8 @@ int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Funda
 
             else if(inner.key().asString() == "MarketCapitalization")
                 Cap = inner->asInt64();
+            else if(inner.key().asString()=="ReturnOnAssetsTTM")
+                ROA= inner->asFloat();
 
         }
         }
@@ -60,70 +56,33 @@ int PopulateFundamentalTable(const Json::Value& root, string symbol,vector<Funda
                     MA200Days = inner->asFloat();
             }
         }
+        else if(itr.key().asString()=="Earnings"){
+            for(Json::Value::const_iterator inner=(*itr).begin();inner!=(*itr).end();inner++){
+                if (inner.key().asString() == "History"){
+                    for(Json::Value::const_iterator innerinner=(*inner).begin();innerinner!=(*inner).end();innerinner++){
+                        if (innerinner.key().asString().substr(0,7) == "2020-03"||
+                        innerinner.key().asString().substr(0,7) =="2020-04"||innerinner.key().asString().substr(0,7) == "2020-05")
+
+                            EPSEstimateNext=(*innerinner)["epsEstimate"].asFloat();
+
+                        if (innerinner.key().asString().substr(0,7) == "2019-12"||
+                            innerinner.key().asString().substr(0,7) =="2020-01"||innerinner.key().asString().substr(0,7) == "2020-02")
+                            EPSActual=(*innerinner)["epsActual"].asFloat();
+                    }
+                }
+
+            }
+        }
 
         //Fundamental F(PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days);
 
     }
-    Fundamental F(symbol,PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days,Cap);
+    float ratio=0;
+    if (EPSActual!=0) ratio=EPSEstimateNext/EPSActual;
+    Fundamental F(symbol,PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days,Cap,ROA,ratio);
     mylockf.lock();
     FundamentalArray.push_back(F);
     mylockf.unlock();
-    /*sqlite3_reset(stmt);
-
-    if (sqlite3_bind_text(stmt, 1, symbol.c_str(), symbol.length(), SQLITE_STATIC) != SQLITE_OK) {
-        cerr << "Could not bind symbol." << endl;
-        return -1;
-    }
-
-    if (sqlite3_bind_double(stmt, 2, PERatio) != SQLITE_OK) {
-        cerr << "Could not bind PERatio." << endl;
-        return -1;
-    };
-
-    if (sqlite3_bind_double(stmt, 3, DivYield) != SQLITE_OK) {
-        cerr << "Could not bind DivYield." << endl;
-        return -1;
-    }
-
-    if (sqlite3_bind_double(stmt, 4, Beta) != SQLITE_OK) {
-        cerr << "Could not bind Beta." << endl;
-        return -1;
-    }
-
-    if (sqlite3_bind_double(stmt, 5, High52Weeks) != SQLITE_OK) {
-        cerr << "Could not bind High52Weeks." << endl;
-        return -1;
-    }
-
-    if (sqlite3_bind_double(stmt, 6, Low52Week) != SQLITE_OK) {
-        cerr << "Could not bind Low52Week." << endl;
-        return -1;
-    }
-
-    if (sqlite3_bind_double(stmt, 7, MA50Days) != SQLITE_OK) {
-        cerr << "Could not bind MA50Days." << endl;
-        return 1;
-    }
-
-    if (sqlite3_bind_double(stmt, 8, MA200Days) != SQLITE_OK) {
-        cerr << "Could not bind adjusted_close." << endl;
-        return 1;
-    }
-
-
-
-    if (sqlite3_step(stmt) != SQLITE_DONE)
-    {
-        cerr << "Could not step (execute) stmt." << endl;
-        return -1;
-    }
-
-    sqlite3_finalize(stmt);
-    sqlite3_exec(db, "commit;", 0, 0, 0);*/
-    //char stockDB_insert_table[512];
-    //sprintf(stockDB_insert_table, "INSERT INTO FundamentalData (symbol, PERatio, DividendYield, Beta, High52Weeks, Low52Weeks, MA50Days, MA200Days) VALUES( \"%s\", %f, %f, %f, %f, %f, %f, %f)",  symbol.c_str(), PERatio,DivYield,Beta,High52Weeks,Low52Week,MA50Days,MA200Days);
-    //if (InsertTable(stockDB_insert_table, db) == -1)
-    //    return -1;
     return 0;
 }
 
@@ -159,6 +118,11 @@ int RetrieveFundamentalDataFromDB(Stock& S, sqlite3* db)
 {
     int rc = 0;
     char* error = NULL;
+    double minROA,maxROA,minEPS,maxEPS;
+    GetMaxMin(maxROA,minROA,"ReturnOnAssets",db);
+    GetMaxMin(maxEPS,minEPS,"EPSEstimate",db);
+
+
     string sql_select="SELECT * FROM FundamentalData where symbol=\'"+S.GetSymbol()+"\';";
     char** results = NULL;
     int rows, columns;
@@ -171,12 +135,9 @@ int RetrieveFundamentalDataFromDB(Stock& S, sqlite3* db)
         sqlite3_free(error);
         return -1;
     }
-    //symbol date open high low close adjusted_close volume DailyReturn
-    //vector<Trade> trades;
-    //vector<double> dailyret;
     int row=1;
     int pos=row*columns;
-    S.AddFundamental(strtod(results[pos+1],NULL),strtod(results[pos+2],NULL),strtod(results[pos+3],NULL),strtod(results[pos+4],NULL),strtod(results[pos+5],NULL),strtod(results[pos+6],NULL),strtod(results[pos+7],NULL),strtoll(results[pos+8],NULL,0));
+    S.AddFundamental(strtod(results[pos+1],NULL),strtod(results[pos+2],NULL),strtod(results[pos+3],NULL),strtod(results[pos+4],NULL),strtod(results[pos+5],NULL),strtod(results[pos+6],NULL),strtod(results[pos+7],NULL),strtoll(results[pos+8],NULL,0),Normalize(maxROA,minROA,strtod(results[pos+9],NULL)),Normalize(maxEPS,minEPS,strtod(results[pos+10],NULL)));
 
 
     // This function properly releases the value array returned by sqlite3_get_table()
