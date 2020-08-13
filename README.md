@@ -21,7 +21,7 @@ B is for retrieving historical daily trading data for S&P500 constituents and sa
 C is for retrieving fundamental data for S&P500 constituents and saving data in sqlite3 database.\
 D and E are for running the application of GAs once and showing a figure for exhibition.\
 F is for tuning parameters in GA; thus changing the macro definition in portfolio.h and re-running F would generate max fitness value and also a plot.\
-G and H are for running the application of multiple times to give statistical results.
+G and H are for running the application of multiple times to give statistical results; the results would be saved in "Backtest.txt" and "Probation.txt" separately.
 
 
 For EDFGH, there is sub-menu to make users choose the fitness function to apply.
