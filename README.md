@@ -6,13 +6,21 @@ This project can accomplish tasks including retrieving data and implementing gen
 
 Menu:
 A. Retrieve and populate S&P500 constituents.
+
 B. Retrieve and populate market data for S&P500 stocks and calculate return.
+
 C. Retrieve and populate fundamental data for S&P500 stocks.
-D. Back test For Exhibition. 
+
+D. Back test For Exhibition.
+
 E. Probation test For Exhibition.
+
 F. Tune Parameters.
+
 G. Back test for Stats.
+
 H. Probation test for Stats.
+
 X. Exit.
 
 A is for retrieving the list of S&P500 constituents and saving in the database.
